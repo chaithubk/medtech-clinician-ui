@@ -30,7 +30,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage" ..
+          cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 
       - name: Build
         run: |
@@ -64,12 +64,12 @@ jobs:
       - name: Static Analysis (clang-tidy)
         run: |
           cd build
-          clang-tidy -p . ../src/**/*.cpp -- -I../src || true
+          clang-tidy -p . $(find ../src -name "*.cpp" -print) || true
 
       - name: Memory Leak Detection (Valgrind - Quick Check)
         run: |
           cd build
-          valgrind --leak-check=full --error-exitcode=1 ./bin/dashboard 2>&1 | head -50 || true
+          QT_QPA_PLATFORM=offscreen valgrind --leak-check=full --show-leak-kinds=definite --errors-for-leak-kinds=definite --error-exitcode=1 ./bin/dashboard -platform offscreen 2>&1 | head -50 || true
 
       - name: Check CMakeLists.txt Formatting
         run: |
