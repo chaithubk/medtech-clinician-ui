@@ -1,0 +1,9 @@
+<!DOCTYPE RCC>
+<RCC>
+    <qresource prefix="/">
+        <file alias="qml/main.qml">/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/qml/main.qml</file>
+        <file alias="qml/VitalCard.qml">/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/qml/VitalCard.qml</file>
+        <file alias="qml/AlarmPanel.qml">/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/qml/AlarmPanel.qml</file>
+        <file alias="qml/Dashboard.qml">/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/qml/Dashboard.qml</file>
+    </qresource>
+</RCC>

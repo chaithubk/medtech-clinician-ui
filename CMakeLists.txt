@@ -76,7 +76,9 @@ file(WRITE ${RESOURCE_FILE} "<!DOCTYPE RCC>
 ")
 
 foreach(QML_FILE ${QML_FILES})
-    file(APPEND ${RESOURCE_FILE} "        <file>${CMAKE_CURRENT_SOURCE_DIR}/${QML_FILE}</file>\n")
+    # Use the source-relative path (e.g. "qml/main.qml") as the resource alias
+    # so the file is accessible as qrc:/qml/main.qml at runtime.
+    file(APPEND ${RESOURCE_FILE} "        <file alias=\"${QML_FILE}\">${CMAKE_CURRENT_SOURCE_DIR}/${QML_FILE}</file>\n")
 endforeach()
 
 file(APPEND ${RESOURCE_FILE} "    </qresource>

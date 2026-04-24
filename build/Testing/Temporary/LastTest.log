@@ -1,0 +1,21 @@
+Start testing: Apr 24 20:58 UTC
+----------------------------------------------------------
+1/1 Testing: mqtt_client_test
+1/1 Test: mqtt_client_test
+Command: "/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/bin/test_mqtt_client"
+Directory: /home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build
+"mqtt_client_test" start time: Apr 24 20:58 UTC
+Output:
+----------------------------------------------------------
+Running MedTech Stage 1 unit tests...
+29 tests passed, 0 tests failed.
+All tests passed ✅
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"mqtt_client_test" end time: Apr 24 20:58 UTC
+"mqtt_client_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Apr 24 20:58 UTC

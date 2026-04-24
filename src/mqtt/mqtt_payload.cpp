@@ -5,15 +5,31 @@
 #include <stdexcept>
 
 namespace MqttPayload {
+
+/**
+ * @brief Parse a JSON vital-signs payload into a VitalReading.
+ *
+ * @param json_str UTF-8 JSON string from the MQTT broker.
+ * @return Populated VitalReading.
+ * @throws std::runtime_error  if the JSON is syntactically invalid.
+ * @throws std::out_of_range   if a required field is absent.
+ */
 VitalReading parseVital(const QString &json_str) {
   const QJsonDocument doc = QJsonDocument::fromJson(json_str.toUtf8());
-  if (!doc.isObject()) {
+  if (doc.isNull() || !doc.isObject()) {
     throw std::runtime_error("Invalid JSON payload");
   }
 
   const QJsonObject obj = doc.object();
-  if (!obj.contains("timestamp")) {
-    throw std::out_of_range("Missing timestamp");
+
+  // Verify every required field is present
+  static const char *required[] = {"timestamp", "hr",     "bp_sys",
+                                   "bp_dia",    "o2_sat", "temperature",
+                                   "quality",   "source", nullptr};
+  for (int i = 0; required[i] != nullptr; ++i) {
+    if (!obj.contains(required[i])) {
+      throw std::out_of_range(std::string("Missing field: ") + required[i]);
+    }
   }
 
   VitalReading reading;
@@ -28,4 +44,5 @@ VitalReading parseVital(const QString &json_str) {
   reading.source = obj.value("source").toString();
   return reading;
 }
+
 } // namespace MqttPayload

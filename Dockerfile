@@ -7,6 +7,12 @@ RUN apt-get update && apt-get install -y \
     clang-format clang-tidy clang \
     libgl1-mesa-dev libglu1-mesa-dev libx11-dev libxkbcommon-dev \
     qt6-base-dev qt6-declarative-dev libqt6opengl6-dev libqt6svg6-dev \
+    qml6-module-qtquick \
+    qml6-module-qtquick-controls \
+    qml6-module-qtquick-layouts \
+    qml6-module-qtquick-templates \
+    qml6-module-qtquick-window \
+    qml6-module-qtqml-workerscript \
     libmosquitto-dev \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*

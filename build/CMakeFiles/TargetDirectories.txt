@@ -1,0 +1,13 @@
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/dashboard.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/test_mqtt_client.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/test.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/edit_cache.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/rebuild_cache.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/list_install_components.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/install.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/install/local.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/install/strip.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/dashboard_autogen_timestamp_deps.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/dashboard_autogen.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/test_mqtt_client_autogen_timestamp_deps.dir
+/home/runner/work/medtech-clinician-ui/medtech-clinician-ui/build/CMakeFiles/test_mqtt_client_autogen.dir
