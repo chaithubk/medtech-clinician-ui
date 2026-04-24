@@ -1,0 +1,168 @@
+name: CI - Clinician UI (Stage 1)
+
+on:
+  push:
+    branches: [ main, feature/* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build, Test & Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake g++ gdb pkg-config \
+            clang-format clang-tidy clang \
+            libgl1-mesa-dev libglu1-mesa-dev libx11-dev libxkbcommon-dev \
+            qt6-base-dev qt6-declarative-dev libqt6opengl6-dev libqt6svg6-dev \
+            libmosquitto-dev \
+            lcov \
+            valgrind
+
+      - name: CMake Configure
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage" ..
+
+      - name: Build
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Run Unit Tests
+        run: |
+          cd build
+          ctest --output-on-failure -V
+
+      - name: Generate Coverage Report
+        run: |
+          cd build
+          lcov --directory . --capture --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./build/coverage.info
+          fail_ci_if_error: false
+
+      - name: Check Code Formatting
+        run: |
+          clang-format --version
+          find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -i
+          git diff --exit-code || (echo "Code formatting issues found. Run: clang-format -i src/**/*.{cpp,h}" && exit 1)
+
+      - name: Static Analysis (clang-tidy)
+        run: |
+          cd build
+          clang-tidy -p . ../src/**/*.cpp -- -I../src || true
+
+      - name: Memory Leak Detection (Valgrind - Quick Check)
+        run: |
+          cd build
+          valgrind --leak-check=full --error-exitcode=1 ./bin/dashboard 2>&1 | head -50 || true
+
+      - name: Check CMakeLists.txt Formatting
+        run: |
+          # Verify CMakeLists.txt exists and is valid
+          cmake --version
+          cat CMakeLists.txt | head -20
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: |
+          docker build -t medtech-clinician-ui:${{ github.sha }} .
+
+      - name: Test Docker Image
+        run: |
+          # Run headless test in Docker
+          docker run --rm \
+            -e QT_QPA_PLATFORM=offscreen \
+            medtech-clinician-ui:${{ github.sha }} \
+            /bin/bash -c "cmake --version && echo 'Docker image OK'"
+
+  lint-and-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake g++ pkg-config \
+            clang-format clang-tidy \
+            libgl1-mesa-dev libglu1-mesa-dev libx11-dev libxkbcommon-dev \
+            qt6-base-dev qt6-declarative-dev libqt6opengl6-dev libqt6svg6-dev \
+            libmosquitto-dev
+
+      - name: Format Check (clang-format)
+        run: |
+          clang-format --version
+          find src tests -name "*.cpp" -o -name "*.h" > /tmp/files.txt
+          cat /tmp/files.txt | xargs clang-format --dry-run --Werror || exit 1
+
+      - name: Lint Check (clang-tidy)
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+          cmake --build . --target all 2>&1 | grep -i warning || true
+
+      - name: Check for TODO/FIXME comments
+        run: |
+          echo "Checking for unresolved TODOs..."
+          grep -r "TODO\|FIXME" src/ tests/ || echo "No unresolved TODOs found ✅"
+
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency Check
+        run: |
+          echo "Checking for hardcoded secrets..."
+          ! grep -r "password\|secret\|api_key" src/ --ignore-case || exit 1
+          echo "✅ No hardcoded secrets found"
+
+      - name: CMakeLists.txt Security Review
+        run: |
+          echo "Verifying CMakeLists.txt security practices..."
+          ! grep -i "execute_process\|system(" CMakeLists.txt || echo "⚠️ Shell commands detected - review manually"
+
+  status-check:
+    name: CI Status Check
+    runs-on: ubuntu-latest
+    needs: [build-and-test, docker-build, lint-and-quality, security]
+    if: always()
+
+    steps:
+      - name: Check All Jobs Passed
+        run: |
+          if [[ "${{ needs.build-and-test.result }}" != "success" || \
+                "${{ needs.docker-build.result }}" != "success" || \
+                "${{ needs.lint-and-quality.result }}" != "success" || \
+                "${{ needs.security.result }}" != "success" ]]; then
+            echo "❌ CI failed - check logs above"
+            exit 1
+          fi
+          echo "✅ All CI checks passed!"

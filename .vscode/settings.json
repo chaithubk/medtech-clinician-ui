@@ -1,0 +1,25 @@
+{
+  "C_Cpp.default.intelliSenseEngine": "Tag Parser",
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.intelliSenseDiagnosticsSupressed": [],
+  "C_Cpp.enhancedColorization": "enabled",
+  "cmake.configureOnOpen": true,
+  "cmake.automaticReconfigure": true,
+  "cmake.buildDirectory": "${workspaceFolder}/build",
+  "cmake.sourceDirectory": "${workspaceFolder}",
+  "[cpp]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "xaver.clang-format"
+  },
+  "[cmake]": {
+    "editor.formatOnSave": true
+  },
+  "[qml]": {
+    "editor.defaultFormatter": "ms-qt-tools.qmlformat"
+  },
+  "editor.rulers": [80, 120],
+  "files.watcherExclude": {
+    "**/build": true,
+    "**/.git": true
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "name": "Clinician UI (Qt6/C++17)",
+  "dockerFile": "Dockerfile",
+  "context": ".",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cpptools-extension-pack",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "xaver.clang-format",
+        "notskm.clang-tidy",
+        "ms-qt-tools.qt-tools",
+        "eamodio.gitlens",
+        "github.copilot",
+        "github.copilot-chat"
+      ],
+      "settings": {
+        "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+        "C_Cpp.default.intelliSenseEngine": "Tag Parser",
+        "cmake.configureOnOpen": true,
+        "cmake.automaticReconfigure": true,
+        "[cpp]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "xaver.clang-format",
+          "editor.rulers": [
+            80,
+            120
+          ]
+        },
+        "[cmake]": {
+          "editor.formatOnSave": true
+        },
+        "[qml]": {
+          "editor.defaultFormatter": "ms-qt-tools.qmlformat"
+        },
+        "editor.wordWrap": "on",
+        "editor.formatOnPaste": true,
+        "C_Cpp.clang_format_style": "{BasedOnStyle: LLVM, IndentWidth: 4, ColumnLimit: 120}",
+        "cmake.buildDirectory": "${workspaceFolder}/build",
+        "cmake.sourceDirectory": "${workspaceFolder}"
+      }
+    }
+  },
+  "postCreateCommand": "echo '=== Qt6 Installation Check ===' && pkg-config --modversion Qt6Core && echo '✅ Qt6 ready'",
+  "forwardPorts": [
+    8080
+  ],
+  "portsAttributes": {
+    "8080": {
+      "label": "Dashboard",
+      "onAutoForward": "notify"
+    }
+  },
+  "remoteUser": "root"
+}
