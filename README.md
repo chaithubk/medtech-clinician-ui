@@ -19,7 +19,7 @@ A Qt6/QML real-time clinician dashboard that displays patient vital signs receiv
 ### Build
 
 ```sh
-mkdir -p build && cd build && cmake .. && make -j$(nproc)
+cmake . && make -j$(nproc)
 ```
 
 Or use the CMake Tools extension — it will configure automatically on container open.

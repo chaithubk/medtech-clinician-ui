@@ -10,6 +10,9 @@ cmake-build-*/
 .qmake.stash
 .qmake.cache
 
+# Qt resource files
+*.qrc
+
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
@@ -51,3 +54,12 @@ vgcore.*
 
 # Temporary files
 /tmp/
+
+# Additional ignores for this project
+bin/
+dashboard_autogen*/
+test_mqtt_client_autogen*/
+Testing/
+
+# Ignore screenshots
+*.png
