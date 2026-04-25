@@ -14,7 +14,7 @@ QString VitalRenderer::formatO2(float o2) {
 }
 
 QString VitalRenderer::formatTemp(float temp) {
-  return QString::number(temp, 'f', 1) + " C";
+  return QString::number(temp, 'f', 1) + " \u00B0C";
 }
 
 QString VitalRenderer::formatQuality(int quality) {
@@ -25,7 +25,7 @@ QString VitalRenderer::getStatusColor(const QString &status) {
   if (status == "Connected") {
     return "#00AA00";
   }
-  if (status == "Connecting") {
+  if (status == "Connecting..." || status == "Stale Data") {
     return "#FFAA00";
   }
   return "#AA0000";

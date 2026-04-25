@@ -76,7 +76,22 @@ file(WRITE ${RESOURCE_FILE} "<!DOCTYPE RCC>
 ")
 
 foreach(QML_FILE ${QML_FILES})
-    file(APPEND ${RESOURCE_FILE} "        <file>${CMAKE_CURRENT_SOURCE_DIR}/${QML_FILE}</file>\n")
+    # Normalize path separators to forward slashes (important on Windows where
+    # CMake variables may contain backslashes) and XML-escape special characters
+    # so the generated .qrc file is well-formed on all platforms.
+    string(REPLACE "\\" "/" QML_ALIAS "${QML_FILE}")
+    string(REPLACE "\\" "/" QML_SOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${QML_FILE}")
+
+    # XML character escaping (order matters: & must come first)
+    foreach(VAR QML_ALIAS QML_SOURCE_PATH)
+        string(REPLACE "&" "&amp;" ${VAR} "${${VAR}}")
+        string(REPLACE "<" "&lt;"  ${VAR} "${${VAR}}")
+        string(REPLACE ">" "&gt;"  ${VAR} "${${VAR}}")
+        string(REPLACE "\"" "&quot;" ${VAR} "${${VAR}}")
+        string(REPLACE "'" "&apos;" ${VAR} "${${VAR}}")
+    endforeach()
+
+    file(APPEND ${RESOURCE_FILE} "        <file alias=\"${QML_ALIAS}\">${QML_SOURCE_PATH}</file>\n")
 endforeach()
 
 file(APPEND ${RESOURCE_FILE} "    </qresource>

@@ -53,5 +53,9 @@
       "onAutoForward": "notify"
     }
   },
-  "remoteUser": "root"
+  "remoteUser": "root",
+  "runArgs": [
+    "-e", "DISPLAY=${localEnv:DISPLAY}",
+    "-v", "/tmp/.X11-unix:/tmp/.X11-unix"
+  ]
 }
