@@ -105,6 +105,9 @@ void MQTTClient::scheduleReconnect() {
 
 void MQTTClient::s_on_connect(struct mosquitto * /*mosq*/, void *obj, int rc) {
   auto *self = static_cast<MQTTClient *>(obj);
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) -- Qt owns the
+  // functor slot object allocated inside invokeMethod and deletes it after
+  // dispatch; this is a known false positive with Qt::QueuedConnection.
   QMetaObject::invokeMethod(
       self, [self, rc]() { self->on_connect_callback(rc); },
       Qt::QueuedConnection);
@@ -113,6 +116,7 @@ void MQTTClient::s_on_connect(struct mosquitto * /*mosq*/, void *obj, int rc) {
 void MQTTClient::s_on_disconnect(struct mosquitto * /*mosq*/, void *obj,
                                  int rc) {
   auto *self = static_cast<MQTTClient *>(obj);
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
   QMetaObject::invokeMethod(
       self, [self, rc]() { self->on_disconnect_callback(rc); },
       Qt::QueuedConnection);
@@ -125,6 +129,7 @@ void MQTTClient::s_on_message(struct mosquitto * /*mosq*/, void *obj,
   QString topic = QString::fromUtf8(msg->topic);
   QString payload = QString::fromUtf8(static_cast<const char *>(msg->payload),
                                       msg->payloadlen);
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
   QMetaObject::invokeMethod(
       self,
       [self, topic, payload]() { self->on_message_callback(topic, payload); },
