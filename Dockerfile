@@ -31,4 +31,4 @@ COPY . .
 
 RUN mkdir -p build && cd build && cmake .. && make -j$(nproc)
 
-CMD ["/bin/bash"]
+CMD ["/workspace/build/bin/dashboard"]
