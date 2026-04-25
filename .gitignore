@@ -1,0 +1,53 @@
+# Build output directories
+build/
+out/
+cmake-build-*/
+
+# Qt generated files
+*.autosave
+*.user
+*.user.*
+.qmake.stash
+.qmake.cache
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Compiled binaries
+*.o
+*.a
+*.so
+*.so.*
+*.dll
+*.exe
+
+# Coverage output
+*.gcno
+*.gcda
+*.info
+coverage.xml
+coverage/
+
+# Valgrind output
+*.vgd
+vgcore.*
+
+# IDE / editor files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Temporary files
+/tmp/
