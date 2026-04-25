@@ -1,5 +1,6 @@
 #include "ui_model.h"
 #include "ui/vital_renderer.h"
+#include "utils/logger.h"
 
 #include <QDateTime>
 
@@ -7,6 +8,8 @@ UIModel::UIModel(QObject *parent) : QObject(parent) {}
 
 void UIModel::setVital(const VitalReading &vital) {
   m_current_vital = vital;
+  Logger::info(QString("UIModel: vitals applied to data model (timestamp=%1)")
+                   .arg(vital.timestamp));
   emit vitalsUpdated();
 }
 

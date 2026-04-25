@@ -166,5 +166,7 @@ void MQTTClient::on_disconnect_callback(int rc) {
 
 void MQTTClient::on_message_callback(const QString &topic,
                                      const QString &payload) {
+  Logger::info(QString("MQTT message received — topic: '%1', payload: %2")
+                   .arg(topic, payload));
   emit messageReceived(topic, payload);
 }
