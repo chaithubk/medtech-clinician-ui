@@ -75,7 +75,16 @@ jobs:
       - name: Memory Leak Detection (Valgrind - Quick Check)
         run: |
           cd build
-          QT_QPA_PLATFORM=offscreen valgrind --leak-check=full --show-leak-kinds=definite --errors-for-leak-kinds=definite --error-exitcode=1 ./bin/dashboard -platform offscreen 2>&1 | head -50 || true
+          # timeout sends SIGTERM after 30 s so the Qt event loop exits cleanly
+          # and valgrind can print its leak summary; exit code 124 means the
+          # timeout fired (not a leak), so map it to 0.
+          QT_QPA_PLATFORM=offscreen \
+            timeout 30 \
+            valgrind --leak-check=full --show-leak-kinds=definite \
+                     --errors-for-leak-kinds=definite --error-exitcode=1 \
+                     ./bin/dashboard 2>&1 | head -100
+          rc=${PIPESTATUS[0]}
+          [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ] || exit "$rc"
 
       - name: Check CMakeLists.txt Formatting
         run: |
