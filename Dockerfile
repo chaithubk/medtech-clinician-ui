@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     qml6-module-qtquick-window \
     qml6-module-qtqml-workerscript \
     libmosquitto-dev \
+    mosquitto \
+    mosquitto-clients \
+    xvfb \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
