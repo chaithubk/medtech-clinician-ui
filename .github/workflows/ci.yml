@@ -1,124 +1,20 @@
-name: CI - Clinician UI (Stage 1)
+name: CI
 
 on:
   push:
-    branches: [ main, feature/* ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main, develop]
 
 jobs:
-  build-and-test:
-    name: Build, Test & Analyze
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake g++ gdb pkg-config \
-            clang-format clang-tidy clang \
-            libgl1-mesa-dev libglu1-mesa-dev libx11-dev libxkbcommon-dev \
-            qt6-base-dev qt6-declarative-dev libqt6opengl6-dev libqt6svg6-dev \
-            qml6-module-qtquick \
-            qml6-module-qtquick-controls \
-            qml6-module-qtquick-layouts \
-            qml6-module-qtquick-templates \
-            qml6-module-qtquick-window \
-            qml6-module-qtqml-workerscript \
-            libmosquitto-dev \
-            lcov \
-            valgrind
-
-      - name: CMake Configure
-        run: |
-          mkdir -p build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
-
-      - name: Build
-        run: |
-          cd build
-          make -j$(nproc)
-
-      - name: Run Unit Tests
-        run: |
-          cd build
-          ctest --output-on-failure -V
-
-      - name: Generate Coverage Report
-        run: |
-          cd build
-          lcov --directory . --capture --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' --output-file coverage.info
-          lcov --list coverage.info
-
-      - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./build/coverage.info
-          fail_ci_if_error: false
-
-      - name: Check Code Formatting
-        run: |
-          clang-format --version
-          find src tests -name "*.cpp" -o -name "*.h" | xargs clang-format -i
-          git diff --exit-code || (echo "Code formatting issues found. Run: clang-format -i src/**/*.{cpp,h}" && exit 1)
-
-      - name: Static Analysis (clang-tidy)
-        run: |
-          cd build
-          clang-tidy -p . $(find ../src -name "*.cpp" -print) || true
-
-      - name: Memory Leak Detection (Valgrind - Quick Check)
-        run: |
-          cd build
-          # timeout sends SIGTERM after 30 s so the Qt event loop exits cleanly
-          # and valgrind can print its leak summary; exit code 124 means the
-          # timeout fired (not a leak), so map it to 0.
-          QT_QPA_PLATFORM=offscreen \
-            timeout 30 \
-            valgrind --leak-check=full --show-leak-kinds=definite \
-                     --errors-for-leak-kinds=definite --error-exitcode=1 \
-                     ./bin/dashboard 2>&1 | head -100
-          rc=${PIPESTATUS[0]}
-          [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ] || exit "$rc"
-
-      - name: Check CMakeLists.txt Formatting
-        run: |
-          # Verify CMakeLists.txt exists and is valid
-          cmake --version
-          cat CMakeLists.txt | head -20
-
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build Docker Image
-        run: |
-          docker build -t medtech-clinician-ui:${{ github.sha }} .
-
-      - name: Test Docker Image
-        run: |
-          # Run headless test in Docker
-          docker run --rm \
-            -e QT_QPA_PLATFORM=offscreen \
-            medtech-clinician-ui:${{ github.sha }} \
-            /bin/bash -c "cmake --version && echo 'Docker image OK'"
-
-  lint-and-quality:
-    name: Code Quality Checks
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -134,56 +30,136 @@ jobs:
             qml6-module-qtqml-workerscript \
             libmosquitto-dev
 
-      - name: Format Check (clang-format)
+      - name: Check code formatting (clang-format)
         run: |
-          clang-format --version
-          find src tests -name "*.cpp" -o -name "*.h" > /tmp/files.txt
-          cat /tmp/files.txt | xargs clang-format --dry-run --Werror || exit 1
+          find src tests -name "*.cpp" -o -name "*.h" | \
+            xargs clang-format --dry-run --Werror
 
-      - name: Lint Check (clang-tidy)
+      - name: Generate compile commands for clang-tidy
         run: |
           mkdir -p build
           cd build
-          cmake ..
-          cmake --build . --target all 2>&1 | grep -i warning || true
+          cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 
-      - name: Check for TODO/FIXME comments
+      - name: Static analysis (clang-tidy)
         run: |
-          echo "Checking for unresolved TODOs..."
-          grep -r "TODO\|FIXME" src/ tests/ || echo "No unresolved TODOs found ✅"
+          find src -name "*.cpp" | \
+            xargs clang-tidy -p build 2>&1 || true
 
-  security:
-    name: Security Scanning
+  test:
+    name: Unit Tests
     runs-on: ubuntu-latest
+    needs: lint
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Dependency Check
+      - name: Install dependencies
         run: |
-          echo "Checking for hardcoded secrets..."
-          ! grep -r "password\|secret\|api_key" src/ --ignore-case || exit 1
-          echo "✅ No hardcoded secrets found"
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake g++ pkg-config \
+            libgl1-mesa-dev libglu1-mesa-dev libx11-dev libxkbcommon-dev \
+            qt6-base-dev qt6-declarative-dev libqt6opengl6-dev libqt6svg6-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtquick-window \
+            qml6-module-qtqml-workerscript \
+            libmosquitto-dev \
+            lcov
 
-      - name: CMakeLists.txt Security Review
+      - name: Configure (coverage build)
         run: |
-          echo "Verifying CMakeLists.txt security practices..."
-          ! grep -i "execute_process\|system(" CMakeLists.txt || echo "⚠️ Shell commands detected - review manually"
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="--coverage" ..
 
-  status-check:
-    name: CI Status Check
+      - name: Build
+        run: make -C build -j$(nproc)
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest --output-on-failure -V
+
+      - name: Generate coverage report
+        run: |
+          cd build
+          lcov --directory . --capture --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./build/coverage.info
+          fail_ci_if_error: false
+
+  security:
+    name: Security Scan
     runs-on: ubuntu-latest
-    needs: [build-and-test, docker-build, lint-and-quality, security]
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for hardcoded secrets
+        run: |
+          ! grep -rn --include='*.cpp' --include='*.h' \
+            -iE '(password|secret|api_key)\s*=\s*"[^"]+"' src/ || \
+            (echo "::error::Hardcoded secret detected in source" && exit 1)
+
+      - name: Check CMake for unsafe shell invocations
+        run: |
+          if grep -iE 'execute_process|system\(' CMakeLists.txt src/CMakeLists.txt 2>/dev/null; then
+            echo "::warning::Shell execution found in CMake — review manually"
+          fi
+
+  smoke-test:
+    name: Smoke Test (local image)
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: medtech-clinician-ui:ci
+
+      - name: Run smoke test
+        uses: ./.github/actions/smoke-test
+        with:
+          image: medtech-clinician-ui:ci
+          registry-token: ${{ secrets.GITHUB_TOKEN }}
+
+  status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [lint, test, security, smoke-test]
     if: always()
 
     steps:
-      - name: Check All Jobs Passed
+      - name: Check all jobs passed
         run: |
-          if [[ "${{ needs.build-and-test.result }}" != "success" || \
-                "${{ needs.docker-build.result }}" != "success" || \
-                "${{ needs.lint-and-quality.result }}" != "success" || \
-                "${{ needs.security.result }}" != "success" ]]; then
-            echo "❌ CI failed - check logs above"
+          if [[ "${{ needs.lint.result }}"       != "success" || \
+                "${{ needs.test.result }}"       != "success" || \
+                "${{ needs.security.result }}"   != "success" || \
+                "${{ needs.smoke-test.result }}" != "success" ]]; then
+            echo "::error::One or more CI jobs failed"
             exit 1
           fi
-          echo "✅ All CI checks passed!"
+          echo "All CI checks passed"

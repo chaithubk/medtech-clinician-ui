@@ -1,0 +1,109 @@
+name: Smoke Test clinician-ui
+description: >
+  Start the vitals-publisher sidecar (which bundles its own MQTT broker), connect
+  clinician-ui to it, and assert that the 'UI model updated' log line confirms at
+  least one vitals message was received and parsed end-to-end.
+
+inputs:
+  image:
+    description: Full image reference to test (e.g. medtech-clinician-ui:ci or ghcr.io/org/medtech-clinician-ui:v1.2.3)
+    required: true
+  registry-token:
+    description: GHCR token used to pull images from GHCR (both the tested image and vitals-publisher); skipped when empty
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Login to GHCR
+      if: ${{ inputs.registry-token != '' }}
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.registry-token }}
+
+    - name: Create isolated Docker network
+      shell: bash
+      run: docker network create smoke-net
+
+    - name: Start vitals-publisher
+      shell: bash
+      run: |
+        # vitals-publisher bundles its own mosquitto broker on port 1883.
+        # MQTT_BROKER=localhost means the embedded publisher talks to that broker.
+        # clinician-ui will connect to this container by its name on the shared network.
+        docker run -d \
+          --name vitals-publisher \
+          --network smoke-net \
+          --hostname vitals-publisher \
+          -e MQTT_BROKER=localhost \
+          -e MQTT_PORT=1883 \
+          -e PUBLISH_INTERVAL_S=2 \
+          -e SCENARIO=healthy \
+          -e LOGLEVEL=DEBUG \
+          -e PYTHONUNBUFFERED=1 \
+          ghcr.io/${{ github.repository_owner }}/medtech-vitals-publisher:latest
+
+    - name: Wait for vitals-publisher to be healthy
+      shell: bash
+      run: |
+        timeout 60 sh -c \
+          'until [ "$(docker inspect --format={{.State.Health.Status}} vitals-publisher 2>/dev/null)" = "healthy" ]; \
+           do sleep 2; done'
+        echo "vitals-publisher is healthy"
+
+    - name: Start clinician-ui container
+      shell: bash
+      run: |
+        docker run -d \
+          --name clinician-ui \
+          --network smoke-net \
+          -e MQTT_BROKER=vitals-publisher \
+          -e MQTT_PORT=1883 \
+          -e MQTT_TOPIC_VITALS=medtech/vitals/latest \
+          -e QT_QPA_PLATFORM=offscreen \
+          ${{ inputs.image }}
+
+    - name: Wait for clinician-ui to be healthy
+      shell: bash
+      run: |
+        timeout 40 sh -c \
+          'until [ "$(docker inspect --format={{.State.Health.Status}} clinician-ui 2>/dev/null)" = "healthy" ]; \
+           do sleep 2; done'
+        echo "clinician-ui is healthy"
+
+    - name: Assert vitals messages are received and processed
+      shell: bash
+      run: |
+        echo "Waiting for clinician-ui to log 'UI model updated' (confirms end-to-end message delivery)..."
+        timeout 30 sh -c \
+          'until docker logs clinician-ui 2>&1 | grep -q "UI model updated"; \
+           do sleep 2; done'
+        echo "clinician-ui received and processed at least one vitals message from vitals-publisher"
+
+    - name: Check logs for fatal errors
+      shell: bash
+      run: |
+        if docker logs clinician-ui 2>&1 | grep -iE 'fatal|crash|segfault|abort'; then
+          echo "::error::Fatal error detected in clinician-ui logs"
+          exit 1
+        fi
+        echo "No fatal errors in clinician-ui logs"
+
+    - name: Dump container logs on failure
+      if: failure()
+      shell: bash
+      run: |
+        echo "=== mqtt-broker ==="
+        docker logs mqtt-broker 2>&1 || true
+        echo "=== clinician-ui ==="
+        docker logs clinician-ui 2>&1 || true
+
+    - name: Tear down
+      if: always()
+      shell: bash
+      run: |
+        docker rm -f clinician-ui vitals-publisher 2>/dev/null || true
+        docker network rm smoke-net 2>/dev/null || true
