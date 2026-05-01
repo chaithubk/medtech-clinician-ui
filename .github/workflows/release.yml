@@ -275,3 +275,95 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.release.outputs.new_version }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Smoke-test the published image: start vitals-publisher as MQTT dependency,
+  # run the clinician-ui container in offscreen mode, verify it stays alive
+  # and logs no fatal errors.
+  # ─────────────────────────────────────────────────────────────────────────────
+  smoke-test-image:
+    name: Smoke-test GHCR image
+    runs-on: ubuntu-latest
+    needs: publish-image
+    if: ${{ !inputs.prerelease }}
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create isolated test network
+        run: docker network create smoke-net
+
+      - name: Start vitals-publisher (MQTT broker dependency)
+        run: |
+          docker run -d \
+            --name vitals-publisher \
+            --network smoke-net \
+            --hostname vitals-publisher \
+            -e MQTT_BROKER=localhost \
+            -e MQTT_PORT=1883 \
+            -e PUBLISH_INTERVAL_S=5 \
+            -e SCENARIO=healthy \
+            -e LOGLEVEL=DEBUG \
+            -e PYTHONUNBUFFERED=1 \
+            ghcr.io/${{ github.repository_owner }}/medtech-vitals-publisher:latest
+
+      - name: Wait for vitals-publisher to be healthy
+        run: |
+          timeout 40 sh -c \
+            'until [ "$(docker inspect --format={{.State.Health.Status}} vitals-publisher 2>/dev/null)" = "healthy" ]; do sleep 2; done'
+          echo "✅ vitals-publisher healthy"
+
+      - name: Start clinician-ui (just-published image, offscreen Qt)
+        run: |
+          docker run -d \
+            --name clinician-ui \
+            --network smoke-net \
+            -e MQTT_BROKER=vitals-publisher \
+            -e MQTT_PORT=1883 \
+            -e MQTT_TOPIC_VITALS=medtech/vitals/latest \
+            -e MQTT_TOPIC_PREDICTIONS=medtech/predictions/sepsis \
+            -e QT_QPA_PLATFORM=offscreen \
+            -e LOGLEVEL=DEBUG \
+            ghcr.io/${{ github.repository_owner }}/medtech-clinician-ui:${{ needs.release.outputs.new_version }}
+
+      - name: Verify clinician-ui stays running for 15 seconds
+        run: |
+          sleep 15
+          STATUS=$(docker inspect --format='{{.State.Status}}' clinician-ui 2>/dev/null)
+          if [[ "$STATUS" != "running" ]]; then
+            echo "::error::clinician-ui container exited unexpectedly (status: ${STATUS})"
+            exit 1
+          fi
+          echo "✅ clinician-ui still running after 15 s"
+
+      - name: Check logs for fatal errors
+        run: |
+          if docker logs clinician-ui 2>&1 | grep -iE 'fatal|crash|segfault|abort'; then
+            echo "::error::Fatal error detected in clinician-ui logs"
+            exit 1
+          fi
+          echo "✅ No fatal errors in logs"
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          echo "=== vitals-publisher ==="
+          docker logs vitals-publisher 2>&1 || true
+          echo "=== clinician-ui ==="
+          docker logs clinician-ui     2>&1 || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker rm -f vitals-publisher clinician-ui 2>/dev/null || true
+          docker network rm smoke-net                2>/dev/null || true
