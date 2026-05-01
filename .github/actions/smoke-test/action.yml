@@ -1,14 +1,15 @@
 name: Smoke Test clinician-ui
 description: >
-  Start an isolated MQTT broker and the clinician-ui container, then verify
-  the service is healthy and produces no fatal errors.
+  Start the vitals-publisher sidecar (which bundles its own MQTT broker), connect
+  clinician-ui to it, and assert that the 'UI model updated' log line confirms at
+  least one vitals message was received and parsed end-to-end.
 
 inputs:
   image:
     description: Full image reference to test (e.g. medtech-clinician-ui:ci or ghcr.io/org/medtech-clinician-ui:v1.2.3)
     required: true
   registry-token:
-    description: GHCR token used to pull the image; skipped when empty (local images)
+    description: GHCR token used to pull images from GHCR (both the tested image and vitals-publisher); skipped when empty
     required: false
     default: ''
 
@@ -27,18 +28,31 @@ runs:
       shell: bash
       run: docker network create smoke-net
 
-    - name: Start MQTT broker
+    - name: Start vitals-publisher
       shell: bash
       run: |
+        # vitals-publisher bundles its own mosquitto broker on port 1883.
+        # MQTT_BROKER=localhost means the embedded publisher talks to that broker.
+        # clinician-ui will connect to this container by its name on the shared network.
         docker run -d \
-          --name mqtt-broker \
+          --name vitals-publisher \
           --network smoke-net \
-          eclipse-mosquitto:2 \
-          sh -c "printf 'listener 1883\nallow_anonymous true\n' > /tmp/m.conf && exec mosquitto -c /tmp/m.conf"
-        timeout 30 sh -c \
-          'until docker exec mqtt-broker mosquitto_pub -h 127.0.0.1 -p 1883 -t smoke/check -m ping -q 0 2>/dev/null; \
+          --hostname vitals-publisher \
+          -e MQTT_BROKER=localhost \
+          -e MQTT_PORT=1883 \
+          -e PUBLISH_INTERVAL_S=2 \
+          -e SCENARIO=healthy \
+          -e LOGLEVEL=DEBUG \
+          -e PYTHONUNBUFFERED=1 \
+          ghcr.io/${{ github.repository_owner }}/medtech-vitals-publisher:latest
+
+    - name: Wait for vitals-publisher to be healthy
+      shell: bash
+      run: |
+        timeout 60 sh -c \
+          'until [ "$(docker inspect --format={{.State.Health.Status}} vitals-publisher 2>/dev/null)" = "healthy" ]; \
            do sleep 2; done'
-        echo "MQTT broker ready"
+        echo "vitals-publisher is healthy"
 
     - name: Start clinician-ui container
       shell: bash
@@ -46,7 +60,7 @@ runs:
         docker run -d \
           --name clinician-ui \
           --network smoke-net \
-          -e MQTT_BROKER=mqtt-broker \
+          -e MQTT_BROKER=vitals-publisher \
           -e MQTT_PORT=1883 \
           -e MQTT_TOPIC_VITALS=medtech/vitals/latest \
           -e QT_QPA_PLATFORM=offscreen \
@@ -60,20 +74,23 @@ runs:
            do sleep 2; done'
         echo "clinician-ui is healthy"
 
-    - name: Verify clinician-ui stays running and has no fatal errors
+    - name: Assert vitals messages are received and processed
       shell: bash
       run: |
-        sleep 10
-        STATUS=$(docker inspect --format='{{.State.Status}}' clinician-ui 2>/dev/null)
-        if [[ "$STATUS" != "running" ]]; then
-          echo "::error::clinician-ui exited unexpectedly (status: ${STATUS})"
-          exit 1
-        fi
+        echo "Waiting for clinician-ui to log 'UI model updated' (confirms end-to-end message delivery)..."
+        timeout 30 sh -c \
+          'until docker logs clinician-ui 2>&1 | grep -q "UI model updated"; \
+           do sleep 2; done'
+        echo "clinician-ui received and processed at least one vitals message from vitals-publisher"
+
+    - name: Check logs for fatal errors
+      shell: bash
+      run: |
         if docker logs clinician-ui 2>&1 | grep -iE 'fatal|crash|segfault|abort'; then
           echo "::error::Fatal error detected in clinician-ui logs"
           exit 1
         fi
-        echo "clinician-ui still running with no fatal errors after 10 s"
+        echo "No fatal errors in clinician-ui logs"
 
     - name: Dump container logs on failure
       if: failure()
@@ -88,5 +105,5 @@ runs:
       if: always()
       shell: bash
       run: |
-        docker rm -f clinician-ui mqtt-broker 2>/dev/null || true
+        docker rm -f clinician-ui vitals-publisher 2>/dev/null || true
         docker network rm smoke-net 2>/dev/null || true

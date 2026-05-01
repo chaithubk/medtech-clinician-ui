@@ -122,6 +122,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test]
 
+    permissions:
+      contents: read
+      packages: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -140,6 +144,7 @@ jobs:
         uses: ./.github/actions/smoke-test
         with:
           image: medtech-clinician-ui:ci
+          registry-token: ${{ secrets.GITHUB_TOKEN }}
 
   status:
     name: CI Status
