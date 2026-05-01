@@ -1,0 +1,92 @@
+name: Smoke Test clinician-ui
+description: >
+  Start an isolated MQTT broker and the clinician-ui container, then verify
+  the service is healthy and produces no fatal errors.
+
+inputs:
+  image:
+    description: Full image reference to test (e.g. medtech-clinician-ui:ci or ghcr.io/org/medtech-clinician-ui:v1.2.3)
+    required: true
+  registry-token:
+    description: GHCR token used to pull the image; skipped when empty (local images)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Login to GHCR
+      if: ${{ inputs.registry-token != '' }}
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.registry-token }}
+
+    - name: Create isolated Docker network
+      shell: bash
+      run: docker network create smoke-net
+
+    - name: Start MQTT broker
+      shell: bash
+      run: |
+        docker run -d \
+          --name mqtt-broker \
+          --network smoke-net \
+          eclipse-mosquitto:2 \
+          sh -c "printf 'listener 1883\nallow_anonymous true\n' > /tmp/m.conf && exec mosquitto -c /tmp/m.conf"
+        timeout 30 sh -c \
+          'until docker exec mqtt-broker mosquitto_pub -h 127.0.0.1 -p 1883 -t smoke/check -m ping -q 0 2>/dev/null; \
+           do sleep 2; done'
+        echo "MQTT broker ready"
+
+    - name: Start clinician-ui container
+      shell: bash
+      run: |
+        docker run -d \
+          --name clinician-ui \
+          --network smoke-net \
+          -e MQTT_BROKER=mqtt-broker \
+          -e MQTT_PORT=1883 \
+          -e MQTT_TOPIC_VITALS=medtech/vitals/latest \
+          -e QT_QPA_PLATFORM=offscreen \
+          ${{ inputs.image }}
+
+    - name: Wait for clinician-ui to be healthy
+      shell: bash
+      run: |
+        timeout 40 sh -c \
+          'until [ "$(docker inspect --format={{.State.Health.Status}} clinician-ui 2>/dev/null)" = "healthy" ]; \
+           do sleep 2; done'
+        echo "clinician-ui is healthy"
+
+    - name: Verify clinician-ui stays running and has no fatal errors
+      shell: bash
+      run: |
+        sleep 10
+        STATUS=$(docker inspect --format='{{.State.Status}}' clinician-ui 2>/dev/null)
+        if [[ "$STATUS" != "running" ]]; then
+          echo "::error::clinician-ui exited unexpectedly (status: ${STATUS})"
+          exit 1
+        fi
+        if docker logs clinician-ui 2>&1 | grep -iE 'fatal|crash|segfault|abort'; then
+          echo "::error::Fatal error detected in clinician-ui logs"
+          exit 1
+        fi
+        echo "clinician-ui still running with no fatal errors after 10 s"
+
+    - name: Dump container logs on failure
+      if: failure()
+      shell: bash
+      run: |
+        echo "=== mqtt-broker ==="
+        docker logs mqtt-broker 2>&1 || true
+        echo "=== clinician-ui ==="
+        docker logs clinician-ui 2>&1 || true
+
+    - name: Tear down
+      if: always()
+      shell: bash
+      run: |
+        docker rm -f clinician-ui mqtt-broker 2>/dev/null || true
+        docker network rm smoke-net 2>/dev/null || true

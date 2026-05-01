@@ -31,4 +31,7 @@ COPY . .
 
 RUN mkdir -p build && cd build && cmake .. && make -j$(nproc)
 
+HEALTHCHECK --interval=5s --timeout=5s --start-period=15s --retries=3 \
+    CMD test "$(cat /proc/1/comm)" = "dashboard" || exit 1
+
 CMD ["/workspace/build/bin/dashboard"]
