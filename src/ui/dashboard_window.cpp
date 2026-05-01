@@ -60,10 +60,16 @@ void DashboardWindow::onMQTTDisconnected() {
 
 void DashboardWindow::onMQTTMessageReceived(const QString &topic,
                                             const QString &payload) {
-  Logger::debug(QString("Message on %1: %2").arg(topic, payload));
+  Logger::info(QString("Payload received on '%1': %2").arg(topic, payload));
   try {
     const VitalReading reading = MqttPayload::parseVital(payload);
     m_ui_model->setVital(reading);
+    Logger::info(
+        QString("UI model updated — HR: %1  BP: %2  SpO2: %3  Temp: %4  "
+                "Quality: %5")
+            .arg(m_ui_model->getHrValue(), m_ui_model->getBpValue(),
+                 m_ui_model->getO2Value(), m_ui_model->getTempValue(),
+                 m_ui_model->getQualityValue()));
     if (m_ui_model->getStatus() == "Stale Data") {
       m_ui_model->setStatus("Connected");
     }
@@ -74,6 +80,14 @@ void DashboardWindow::onMQTTMessageReceived(const QString &topic,
 }
 
 void DashboardWindow::onTimeout() {
+  // Heartbeat log every 30 s so the terminal confirms the process is alive
+  ++m_heartbeat_tick;
+  if (m_heartbeat_tick % 30 == 0) {
+    Logger::info(
+        QString("Dashboard running — status: %1, last update: %2")
+            .arg(m_ui_model->getStatus(), m_ui_model->getLastUpdate()));
+  }
+
   const VitalReading vital = m_ui_model->getCurrentVital();
   if (vital.timestamp == 0) {
     return; // No data received yet

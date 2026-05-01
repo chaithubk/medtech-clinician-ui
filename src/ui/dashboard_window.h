@@ -45,4 +45,5 @@ private:
   UIModel *m_ui_model{nullptr};
   QQmlApplicationEngine *m_engine{nullptr};
   QTimer *m_status_timer{nullptr};
+  int m_heartbeat_tick{0};
 };
