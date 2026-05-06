@@ -7,6 +7,7 @@
 /**
  * @brief Qt model exposing vital-sign data to QML via Q_PROPERTY bindings.
  *
+ * Exposes all fields from the MedTech Vitals Telemetry Contract v2.0.
  * All getter methods are bound to QML properties.  Call setVital() /
  * setStatus() from C++ and the QML layer will update automatically through the
  * signals.
@@ -21,6 +22,14 @@ class UIModel : public QObject {
   Q_PROPERTY(QString temp_value READ getTempValue NOTIFY vitalsUpdated)
   Q_PROPERTY(QString quality_value READ getQualityValue NOTIFY vitalsUpdated)
   Q_PROPERTY(QString last_update READ getLastUpdate NOTIFY vitalsUpdated)
+  Q_PROPERTY(
+      QString respiratory_rate_value READ getRespRateValue NOTIFY vitalsUpdated)
+  Q_PROPERTY(
+      QString sepsis_stage_value READ getSepsisStageValue NOTIFY vitalsUpdated)
+  Q_PROPERTY(
+      QString sirs_score_value READ getSirsScoreValue NOTIFY vitalsUpdated)
+  Q_PROPERTY(
+      QString qsofa_score_value READ getQsofaScoreValue NOTIFY vitalsUpdated)
 
 public:
   explicit UIModel(QObject *parent = nullptr);
@@ -44,6 +53,18 @@ public:
 
   /** @brief Human-readable time elapsed since the last vital update. */
   QString getLastUpdate() const;
+
+  /** @brief Respiratory rate formatted as "X breaths/min". */
+  QString getRespRateValue() const;
+
+  /** @brief Sepsis stage string from the v2 schema enum. */
+  QString getSepsisStageValue() const;
+
+  /** @brief SIRS score as a string. */
+  QString getSirsScoreValue() const;
+
+  /** @brief qSOFA score as a string. */
+  QString getQsofaScoreValue() const;
 
 signals:
   /** @brief Emitted whenever a new VitalReading is stored. */

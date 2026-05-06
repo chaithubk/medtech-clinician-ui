@@ -56,7 +56,13 @@ You should see in the terminal:
 
 ```sh
 mosquitto_pub -h localhost -t "medtech/vitals/latest" \
-  -m "{\"timestamp\":$(date +%s%3N),\"hr\":72.5,\"bp_sys\":120.0,\"bp_dia\":80.0,\"o2_sat\":98.5,\"temperature\":36.8,\"quality\":95,\"source\":\"test-simulator\"}"
+  -m "{\"version\":\"2.0\",\"patient_id\":\"P001\",\"scenario\":\"healthy\",\
+\"scenario_stage\":\"healthy\",\"timestamp\":$(date +%s%3N),\
+\"hr\":72.5,\"bp_sys\":120.0,\"bp_dia\":80.0,\"o2_sat\":98.5,\
+\"temperature\":36.8,\"respiratory_rate\":14.0,\"wbc\":7.5,\
+\"lactate\":0.8,\"sirs_score\":0,\"qsofa_score\":0,\
+\"sepsis_stage\":\"none\",\"sepsis_onset_ts\":null,\
+\"quality\":\"good\",\"source\":\"test-simulator\"}"
 ```
 
 ### 4. Take a screenshot to verify the UI
@@ -69,22 +75,53 @@ Open `dashboard_screenshot.png` in VS Code Explorer to view the rendered dashboa
 
 ---
 
-## MQTT Payload Format
+## MQTT Payload Format (Contract v2.0)
 
 The app subscribes to the topic `medtech/vitals/latest` (configurable via `MQTT_TOPIC_VITALS` env var).
 
+**Contract source of truth:** [chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract) — pinned to tag **`v2.0.0`**  
+**Vendored schema:** [`contracts/vitals/v2.0.json`](contracts/vitals/v2.0.json)  
+**Pinned version:** [`contracts/VITALS_CONTRACT_VERSION.txt`](contracts/VITALS_CONTRACT_VERSION.txt)
+
+Payloads **must** have `"version": "2.0"`.  Any message with a missing or
+non-matching `version` is silently dropped and a warning is logged.
+
 | Field | Type | Description |
 |-------|------|-------------|
+| `version` | string | Schema version — **must** be `"2.0"` |
+| `patient_id` | string | Patient or simulated-patient record ID |
+| `scenario` | string | `"healthy"` \| `"sepsis"` \| `"critical"` |
+| `scenario_stage` | string | `"healthy"` \| `"pre_sepsis"` \| `"sepsis_onset"` \| `"sepsis"` \| `"septic_shock"` |
 | `timestamp` | integer | Unix epoch in **milliseconds** |
 | `hr` | float | Heart rate (bpm) |
 | `bp_sys` | float | Systolic blood pressure (mmHg) |
 | `bp_dia` | float | Diastolic blood pressure (mmHg) |
 | `o2_sat` | float | SpO₂ (%) |
 | `temperature` | float | Body temperature (°C) |
-| `quality` | int | Signal quality score (0–100) |
-| `source` | string | Data source label (e.g. `"bedside-monitor"`) |
+| `respiratory_rate` | float | Respiratory rate (breaths/min) |
+| `wbc` | float | White blood cell count (10³/µL) |
+| `lactate` | float | Blood lactate (mmol/L) |
+| `sirs_score` | integer | SIRS score (0–4) |
+| `qsofa_score` | integer | qSOFA score (0–3) |
+| `sepsis_stage` | string | `"none"` \| `"sirs"` \| `"sepsis"` \| `"septic_shock"` |
+| `sepsis_onset_ts` | integer \| null | Sepsis onset timestamp (ms epoch), or `null` if not yet detected |
+| `quality` | string | Signal quality: e.g. `"good"`, `"degraded"`, `"poor"` |
+| `source` | string | Data source label (e.g. `"synthea-simulator"`) |
 
 > **Note:** Use `$(date +%s%3N)` for the timestamp to avoid the **"Stale Data"** warning, which triggers when data is older than 5 seconds.
+
+### Example v2.0 payload
+
+```sh
+mosquitto_pub -h localhost -t "medtech/vitals/latest" \
+  -m "{\"version\":\"2.0\",\"patient_id\":\"P001\",\"scenario\":\"healthy\",\
+\"scenario_stage\":\"healthy\",\"timestamp\":$(date +%s%3N),\
+\"hr\":72.5,\"bp_sys\":120.0,\"bp_dia\":80.0,\"o2_sat\":98.5,\
+\"temperature\":36.8,\"respiratory_rate\":14.0,\"wbc\":7.5,\
+\"lactate\":0.8,\"sirs_score\":0,\"qsofa_score\":0,\
+\"sepsis_stage\":\"none\",\"sepsis_onset_ts\":null,\
+\"quality\":\"good\",\"source\":\"test-simulator\"}"
+```
 
 ---
 

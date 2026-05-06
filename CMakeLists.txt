@@ -174,6 +174,12 @@ target_include_directories(test_mqtt_client PRIVATE
     ${MOSQUITTO_INCLUDE_DIRS}
 )
 
+# Provide the project root directory to the test binary so it can locate
+# vendored contract files (e.g. contracts/vitals/v2.0.json)
+target_compile_definitions(test_mqtt_client PRIVATE
+    MEDTECH_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
 # Register tests
 add_test(NAME mqtt_client_test COMMAND test_mqtt_client)
 
