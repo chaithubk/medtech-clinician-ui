@@ -23,8 +23,9 @@ public:
   /** @brief Format temperature. Example: formatTemp(37.2f) → "37.2 °C" */
   static QString formatTemp(float temp);
 
-  /** @brief Format data quality score. Example: formatQuality(95) → "95" */
-  static QString formatQuality(int quality);
+  /** @brief Format data quality label. Example: formatQuality("good") → "good"
+   */
+  static QString formatQuality(const QString &quality);
 
   /**
    * @brief Return a hex colour string for the given status label.

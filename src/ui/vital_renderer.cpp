@@ -17,9 +17,7 @@ QString VitalRenderer::formatTemp(float temp) {
   return QString::number(temp, 'f', 1) + " \u00B0C";
 }
 
-QString VitalRenderer::formatQuality(int quality) {
-  return QString::number(quality);
-}
+QString VitalRenderer::formatQuality(const QString &quality) { return quality; }
 
 QString VitalRenderer::getStatusColor(const QString &status) {
   if (status == "Connected") {

@@ -54,3 +54,20 @@ QString UIModel::getLastUpdate() const {
   const qint64 diff_s = (now_ms - m_current_vital.timestamp) / 1000;
   return QString("%1s ago").arg(diff_s);
 }
+
+QString UIModel::getRespRateValue() const {
+  return QString::number(m_current_vital.respiratory_rate, 'f', 0) +
+         " breaths/min";
+}
+
+QString UIModel::getSepsisStageValue() const {
+  return m_current_vital.sepsis_stage;
+}
+
+QString UIModel::getSirsScoreValue() const {
+  return QString::number(m_current_vital.sirs_score);
+}
+
+QString UIModel::getQsofaScoreValue() const {
+  return QString::number(m_current_vital.qsofa_score);
+}

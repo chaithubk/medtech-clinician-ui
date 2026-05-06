@@ -16,7 +16,7 @@ void vital_renderer_link_anchor() {
   (void)VitalRenderer::formatBP(120.0f, 80.0f);
   (void)VitalRenderer::formatO2(98.0f);
   (void)VitalRenderer::formatTemp(37.2f);
-  (void)VitalRenderer::formatQuality(95);
+  (void)VitalRenderer::formatQuality("good");
   (void)VitalRenderer::getStatusColor("Connected");
   (void)VitalRenderer::getStatusColor("Stale Data");
   (void)VitalRenderer::getStatusColor("No Data");
