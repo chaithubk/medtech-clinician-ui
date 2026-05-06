@@ -374,6 +374,6 @@ int main(int argc, char *argv[]) {
   if (g_fail > 0) {
     return EXIT_FAILURE;
   }
-  std::cout << "All tests passed \u2705\n";
+  std::cout << "All tests passed \xE2\x9C\x85\n";
   return EXIT_SUCCESS;
 }
