@@ -155,16 +155,12 @@ run_step "Coverage report generation" \
   "lcov --directory . --capture --output-file coverage.info >/dev/null && lcov --remove coverage.info '/usr/*' --output-file coverage.info >/dev/null && lcov --list coverage.info | head -20"
 
 # ============================================================================
-# DOCKER (optional)
+# DOCKER SMOKE TEST
 # ============================================================================
 
 if [[ "$SKIP_DOCKER" == false ]]; then
-  if command -v docker >/dev/null 2>&1; then
-    run_step "Docker build" \
-      "docker build -t medtech-clinician-ui:ci . >/dev/null 2>&1"
-  else
-    echo -e "${YELLOW}⚠ Skipping Docker check (docker not installed)${NC}"
-  fi
+  run_step "Docker build (smoke test)" \
+    "docker build -t medtech-clinician-ui:ci . 2>&1"
 fi
 
 # ============================================================================
@@ -213,7 +209,13 @@ if [[ $FAILED -ne 0 ]]; then
         echo -e "${CYAN}Review and secure shell invocations in CMake:${NC}"
         echo -e "  ${CYAN}grep -n -iE 'execute_process|system\\(' CMakeLists.txt src/CMakeLists.txt${NC}\n"
         ;;
-      "Docker build")
+      "Coverage report generation")
+        echo -e "${CYAN}Generate coverage report manually:${NC}"
+        echo -e "  ${CYAN}lcov --directory . --capture --output-file coverage.info${NC}"
+        echo -e "  ${CYAN}lcov --remove coverage.info '/usr/*' --output-file coverage.info${NC}"
+        echo -e "  ${CYAN}lcov --list coverage.info${NC}\n"
+        ;;
+      "Docker build (smoke test)")
         echo -e "${CYAN}Check Dockerfile and build issues:${NC}"
         echo -e "  ${CYAN}docker build -t medtech-clinician-ui:ci . --progress=plain${NC}\n"
         ;;
