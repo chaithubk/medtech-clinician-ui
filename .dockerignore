@@ -1,0 +1,27 @@
+# Git and editor metadata
+.git
+.gitignore
+.vscode
+.claude
+.devcontainer
+
+# CMake and build outputs from host
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+Makefile
+Testing/
+coverage.info
+
+# Binary/output directories
+bin/
+build/
+
+# Qt autogen outputs
+dashboard_autogen/
+test_mqtt_client_autogen/
+
+# Optional local artifacts
+*.log
