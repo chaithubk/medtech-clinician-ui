@@ -32,8 +32,10 @@ QString describeValueType(const QJsonValue &value) {
   }
   if (value.isDouble()) {
     const double n = value.toDouble();
-    return (std::abs(n) <= kMaxSafeInteger && std::floor(n) == n) ? "integer"
-                                                                   : "number";
+    if (std::abs(n) <= kMaxSafeInteger && std::floor(n) == n) {
+      return "integer";
+    }
+    return "number";
   }
   return "unknown";
 }
@@ -176,7 +178,9 @@ void validatePayload(const QJsonObject &obj) {
   }
 
   const QJsonObject properties = g_runtime_schema.value("properties").toObject();
-  if (!g_runtime_schema.value("additionalProperties").toBool(false)) {
+  const bool allow_additional_properties =
+      g_runtime_schema.value("additionalProperties").toBool(false);
+  if (!allow_additional_properties) {
     for (auto it = obj.constBegin(); it != obj.constEnd(); ++it) {
       if (!properties.contains(it.key())) {
         throw std::runtime_error(
