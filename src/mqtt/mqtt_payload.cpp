@@ -13,6 +13,7 @@ namespace {
 QJsonObject g_runtime_schema;
 QString g_runtime_schema_path;
 constexpr double kMaxSafeInteger = 9007199254740991.0; // 2^53 - 1
+bool isInteger(const QJsonValue &value);
 
 QString describeValueType(const QJsonValue &value) {
   if (value.isNull()) {
@@ -31,8 +32,7 @@ QString describeValueType(const QJsonValue &value) {
     return "object";
   }
   if (value.isDouble()) {
-    const double n = value.toDouble();
-    if (std::abs(n) <= kMaxSafeInteger && std::floor(n) == n) {
+    if (isInteger(value)) {
       return "integer";
     }
     return "number";
@@ -45,7 +45,8 @@ bool isInteger(const QJsonValue &value) {
     return false;
   }
   const double n = value.toDouble();
-  return std::abs(n) <= kMaxSafeInteger && std::floor(n) == n;
+  return std::isfinite(n) && std::abs(n) <= kMaxSafeInteger &&
+         std::trunc(n) == n;
 }
 
 bool validateType(const QJsonValue &value, const QString &expected_type) {
