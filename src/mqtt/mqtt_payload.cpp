@@ -12,6 +12,7 @@ namespace MqttPayload {
 namespace {
 QJsonObject g_runtime_schema;
 QString g_runtime_schema_path;
+constexpr double kMaxSafeInteger = 9007199254740991.0; // 2^53 - 1
 
 QString describeValueType(const QJsonValue &value) {
   if (value.isNull()) {
@@ -31,7 +32,8 @@ QString describeValueType(const QJsonValue &value) {
   }
   if (value.isDouble()) {
     const double n = value.toDouble();
-    return std::floor(n) == n ? "integer" : "number";
+    return (std::abs(n) <= kMaxSafeInteger && std::floor(n) == n) ? "integer"
+                                                                   : "number";
   }
   return "unknown";
 }
@@ -41,7 +43,7 @@ bool isInteger(const QJsonValue &value) {
     return false;
   }
   const double n = value.toDouble();
-  return std::floor(n) == n;
+  return std::abs(n) <= kMaxSafeInteger && std::floor(n) == n;
 }
 
 bool validateType(const QJsonValue &value, const QString &expected_type) {
