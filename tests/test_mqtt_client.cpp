@@ -315,6 +315,17 @@ static void test_parseVital_contract_violation() {
       R"("quality":"good","source":"simulator"})";
   ASSERT_THROWS(MqttPayload::parseVital(invalid_type_payload),
                 std::runtime_error);
+
+  const QString unknown_field_payload =
+      R"({"version":"2.0","patient_id":"P001","scenario":"sepsis",)"
+      R"("scenario_stage":"pre_sepsis","timestamp":1712973600000,)"
+      R"("hr":92.0,"bp_sys":135.0,"bp_dia":85.0,"o2_sat":98.0,)"
+      R"("temperature":37.2,"respiratory_rate":18.0,"wbc":11.5,)"
+      R"("lactate":1.2,"sirs_score":2,"qsofa_score":1,)"
+      R"("sepsis_stage":"sirs","sepsis_onset_ts":null,)"
+      R"("quality":"good","source":"simulator","unexpected":1})";
+  ASSERT_THROWS(MqttPayload::parseVital(unknown_field_payload),
+                std::runtime_error);
 }
 
 // ---------------------------------------------------------------------------

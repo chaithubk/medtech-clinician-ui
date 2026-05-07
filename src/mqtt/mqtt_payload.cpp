@@ -12,7 +12,7 @@ namespace MqttPayload {
 namespace {
 QJsonObject g_runtime_schema;
 QString g_runtime_schema_path;
-constexpr double kMaxSafeInteger = 9007199254740991.0; // 2^53 - 1
+constexpr double kMaxJsonSafeInteger = 9007199254740991.0; // 2^53 - 1
 bool isInteger(const QJsonValue &value);
 
 QString describeValueType(const QJsonValue &value) {
@@ -45,7 +45,7 @@ bool isInteger(const QJsonValue &value) {
     return false;
   }
   const double n = value.toDouble();
-  return std::isfinite(n) && std::abs(n) <= kMaxSafeInteger &&
+  return std::isfinite(n) && std::abs(n) <= kMaxJsonSafeInteger &&
          std::trunc(n) == n;
 }
 
@@ -166,7 +166,8 @@ bool validateProperty(const QString &field, const QJsonValue &value,
 
 void validatePayload(const QJsonObject &obj) {
   if (g_runtime_schema.isEmpty()) {
-    throw std::runtime_error("Vitals schema not loaded");
+    throw std::runtime_error(
+        "Vitals schema not initialized; call initializeValidator() before parsing");
   }
 
   const QJsonArray required = g_runtime_schema.value("required").toArray();
