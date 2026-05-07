@@ -21,6 +21,16 @@ DashboardWindow::DashboardWindow(QObject *parent) : QObject(parent) {
   m_engine->rootContext()->setContextProperty("uiModel", m_ui_model);
   m_engine->load(QUrl("qrc:/qml/main.qml"));
 
+  try {
+    MqttPayload::initializeValidator(Config::VITALS_SCHEMA_PATH);
+    Logger::info(QString("Loaded vitals schema from %1")
+                     .arg(Config::VITALS_SCHEMA_PATH));
+  } catch (const std::exception &e) {
+    failClosedVitals(
+        QString("Cannot load vitals schema from %1: %2")
+            .arg(Config::VITALS_SCHEMA_PATH, QString::fromUtf8(e.what())));
+  }
+
   // Create the MQTT client
   m_mqtt_client =
       new MQTTClient(Config::MQTT_BROKER, Config::MQTT_PORT, QString(), this);
@@ -48,18 +58,29 @@ DashboardWindow::DashboardWindow(QObject *parent) : QObject(parent) {
 DashboardWindow::~DashboardWindow() = default;
 
 void DashboardWindow::onMQTTConnected() {
+  if (m_vitals_contract_failed) {
+    Logger::error(
+        "MQTT connected but vitals stream is disabled due to contract failure");
+    return;
+  }
   Logger::info("MQTT connected — subscribing to vitals topic");
   m_ui_model->setStatus("Connected");
   m_mqtt_client->subscribe(Config::MQTT_TOPIC_VITALS);
 }
 
 void DashboardWindow::onMQTTDisconnected() {
+  if (m_vitals_contract_failed) {
+    return;
+  }
   Logger::warn("MQTT disconnected");
   m_ui_model->setStatus("Connecting...");
 }
 
 void DashboardWindow::onMQTTMessageReceived(const QString &topic,
                                             const QString &payload) {
+  if (m_vitals_contract_failed) {
+    return;
+  }
   Logger::info(QString("Payload received on '%1': %2").arg(topic, payload));
   try {
     const VitalReading reading = MqttPayload::parseVital(payload);
@@ -74,8 +95,8 @@ void DashboardWindow::onMQTTMessageReceived(const QString &topic,
       m_ui_model->setStatus("Connected");
     }
   } catch (const std::exception &e) {
-    Logger::error(QString("Failed to parse vital payload: %1").arg(e.what()));
-    m_ui_model->setStatus("No Data");
+    failClosedVitals(QString("Contract violation on topic '%1': %2")
+                         .arg(topic, QString::fromUtf8(e.what())));
   }
 }
 
@@ -99,4 +120,15 @@ void DashboardWindow::onTimeout() {
     Logger::warn("Vital data is stale (>5 s without update)");
     m_ui_model->setStatus("Stale Data");
   }
+}
+
+void DashboardWindow::failClosedVitals(const QString &reason) {
+  if (m_vitals_contract_failed) {
+    return;
+  }
+
+  m_vitals_contract_failed = true;
+  Logger::error("Hard-failing vitals stream: " + reason);
+  m_ui_model->setStatus("Telemetry Error");
+  m_ui_model->setGlobalError("Telemetry error: " + reason);
 }

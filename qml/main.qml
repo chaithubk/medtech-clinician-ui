@@ -22,6 +22,27 @@ ApplicationWindow {
         anchors.margins: 24
         spacing: 24
 
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 56
+            visible: uiModel && uiModel.has_global_error
+            color: "#7A0000"
+            radius: 6
+            border.color: "#FF6666"
+            border.width: 1
+
+            Text {
+                anchors.fill: parent
+                anchors.margins: 12
+                verticalAlignment: Text.AlignVCenter
+                text: uiModel ? uiModel.global_error : ""
+                color: "#FFFFFF"
+                wrapMode: Text.Wrap
+                font.pixelSize: 16
+                font.bold: true
+            }
+        }
+
         // ── Row 1: Connection status ────────────────────────────────────────
         Text {
             Layout.alignment: Qt.AlignHCenter

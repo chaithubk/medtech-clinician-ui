@@ -55,6 +55,10 @@ QString UIModel::getLastUpdate() const {
   return QString("%1s ago").arg(diff_s);
 }
 
+QString UIModel::getGlobalError() const { return m_global_error; }
+
+bool UIModel::hasGlobalError() const { return !m_global_error.isEmpty(); }
+
 QString UIModel::getRespRateValue() const {
   return QString::number(m_current_vital.respiratory_rate, 'f', 0) +
          " breaths/min";
@@ -70,4 +74,12 @@ QString UIModel::getSirsScoreValue() const {
 
 QString UIModel::getQsofaScoreValue() const {
   return QString::number(m_current_vital.qsofa_score);
+}
+
+void UIModel::setGlobalError(const QString &error_message) {
+  if (m_global_error == error_message) {
+    return;
+  }
+  m_global_error = error_message;
+  emit globalErrorChanged(m_global_error);
 }

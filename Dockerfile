@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y \
     mosquitto \
     mosquitto-clients \
     xvfb \
+    lcov \
+    docker.io \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
@@ -29,7 +31,12 @@ ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib
 
 COPY . .
 
-RUN mkdir -p build && cd build && cmake .. && make -j$(nproc)
+RUN mkdir -p /usr/share/medtech/contracts/vitals \
+    && cp contracts/vitals/v2.0.json /usr/share/medtech/contracts/vitals/current.json
+
+RUN rm -f CMakeCache.txt && rm -rf CMakeFiles \
+    && cmake -S . -B build \
+    && cmake --build build -j$(nproc)
 
 HEALTHCHECK --interval=5s --timeout=5s --start-period=15s --retries=3 \
     CMD test "$(cat /proc/1/comm)" = "dashboard" || exit 1

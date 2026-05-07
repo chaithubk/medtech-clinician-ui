@@ -96,8 +96,8 @@ runs:
       if: failure()
       shell: bash
       run: |
-        echo "=== mqtt-broker ==="
-        docker logs mqtt-broker 2>&1 || true
+        echo "=== vitals-publisher ==="
+        docker logs vitals-publisher 2>&1 || true
         echo "=== clinician-ui ==="
         docker logs clinician-ui 2>&1 || true
 
