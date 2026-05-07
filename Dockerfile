@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y \
     mosquitto \
     mosquitto-clients \
     xvfb \
+    lcov \
+    docker.io \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
