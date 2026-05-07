@@ -97,7 +97,7 @@ static void initializeRuntimeSchemaOrFail() {
     ++g_pass;
   } catch (const std::exception &e) {
     std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
-              << "  Failed to initialize schema validator: " << e.what()
+              << " Failed to initialize schema validator: " << e.what()
               << "\n";
     ++g_fail;
   }

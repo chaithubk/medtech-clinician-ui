@@ -174,7 +174,7 @@ void validatePayload(const QJsonObject &obj) {
   }
 
   const QJsonObject properties = g_runtime_schema.value("properties").toObject();
-  if (!g_runtime_schema.value("additionalProperties").toBool(true)) {
+  if (!g_runtime_schema.value("additionalProperties").toBool(false)) {
     for (auto it = obj.constBegin(); it != obj.constEnd(); ++it) {
       if (!properties.contains(it.key())) {
         throw std::runtime_error(
