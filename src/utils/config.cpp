@@ -25,8 +25,9 @@ const int MQTT_QOS = envToInt("MQTT_QOS", 1);
 const int STATUS_UPDATE_INTERVAL_MS =
     envToInt("STATUS_UPDATE_INTERVAL_MS", 1000);
 const int DATA_STALE_TIMEOUT_MS = envToInt("DATA_STALE_TIMEOUT_MS", 5000);
-const QString VITALS_SCHEMA_PATH = getEnv(
-    "MEDTECH_VITALS_SCHEMA", "/usr/share/medtech/contracts/vitals/current.json");
+const QString VITALS_SCHEMA_PATH =
+    getEnv("MEDTECH_VITALS_SCHEMA",
+           "/usr/share/medtech/contracts/vitals/current.json");
 const int WINDOW_WIDTH = envToInt("WINDOW_WIDTH", 1920);
 const int WINDOW_HEIGHT = envToInt("WINDOW_HEIGHT", 1080);
 } // namespace Config

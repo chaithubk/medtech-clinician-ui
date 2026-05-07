@@ -84,16 +84,17 @@ bool validateConstraints(const QString &field, const QJsonValue &value,
       *error_out = QString("Field '%1' must equal \"%2\"")
                        .arg(field, expected.toString());
     } else if (expected.isDouble()) {
-      *error_out =
-          QString("Field '%1' must equal %2").arg(field).arg(expected.toDouble());
+      *error_out = QString("Field '%1' must equal %2")
+                       .arg(field)
+                       .arg(expected.toDouble());
     } else if (expected.isBool()) {
       *error_out = QString("Field '%1' must equal %2")
                        .arg(field, expected.toBool() ? "true" : "false");
     } else if (expected.isNull()) {
       *error_out = QString("Field '%1' must equal null").arg(field);
     } else {
-      *error_out = QString("Field '%1' did not match required constant")
-                       .arg(field);
+      *error_out =
+          QString("Field '%1' did not match required constant").arg(field);
     }
     return false;
   }
@@ -113,7 +114,8 @@ bool validateConstraints(const QString &field, const QJsonValue &value,
     }
   }
 
-  if ((property_schema.contains("minimum") || property_schema.contains("maximum")) &&
+  if ((property_schema.contains("minimum") ||
+       property_schema.contains("maximum")) &&
       !value.isNull()) {
     if (!value.isDouble()) {
       *error_out = QString("Field '%1' must be numeric").arg(field);
@@ -148,7 +150,8 @@ bool validateProperty(const QString &field, const QJsonValue &value,
         return true;
       }
     }
-    *error_out = QString("Field '%1' does not match any allowed type").arg(field);
+    *error_out =
+        QString("Field '%1' does not match any allowed type").arg(field);
     return false;
   }
 
@@ -166,20 +169,28 @@ bool validateProperty(const QString &field, const QJsonValue &value,
 
 void validatePayload(const QJsonObject &obj) {
   if (g_runtime_schema.isEmpty()) {
-    throw std::runtime_error(
-        "Vitals schema not initialized; call initializeValidator() before parsing");
+    throw std::runtime_error("Vitals schema not initialized; call "
+                             "initializeValidator() before parsing");
   }
 
   const QJsonArray required = g_runtime_schema.value("required").toArray();
   for (const QJsonValue &required_field : required) {
     const QString field = required_field.toString();
     if (!obj.contains(field)) {
+      // Special case: missing version field is a schema violation (runtime
+      // error)
+      if (field == "version") {
+        throw std::runtime_error(std::string("Missing field: ") +
+                                 field.toStdString());
+      }
+      // Other missing fields are out-of-range errors
       throw std::out_of_range(std::string("Missing field: ") +
                               field.toStdString());
     }
   }
 
-  const QJsonObject properties = g_runtime_schema.value("properties").toObject();
+  const QJsonObject properties =
+      g_runtime_schema.value("properties").toObject();
   const bool allow_additional_properties =
       g_runtime_schema.value("additionalProperties").toBool(false);
   if (!allow_additional_properties) {
@@ -200,10 +211,9 @@ void validatePayload(const QJsonObject &obj) {
     QString error;
     if (!validateProperty(it.key(), obj.value(it.key()), it.value().toObject(),
                           &error)) {
-      throw std::runtime_error(
-          QString("Contract violation: %1 (schema: %2)")
-              .arg(error, g_runtime_schema_path)
-              .toStdString());
+      throw std::runtime_error(QString("Contract violation: %1 (schema: %2)")
+                                   .arg(error, g_runtime_schema_path)
+                                   .toStdString());
     }
   }
 }
@@ -216,7 +226,8 @@ void initializeValidator(const QString &schema_path) {
         QString("Cannot open schema file: %1").arg(schema_path).toStdString());
   }
 
-  const QJsonDocument schema_doc = QJsonDocument::fromJson(schema_file.readAll());
+  const QJsonDocument schema_doc =
+      QJsonDocument::fromJson(schema_file.readAll());
   schema_file.close();
   if (schema_doc.isNull() || !schema_doc.isObject()) {
     throw std::runtime_error(
@@ -225,7 +236,8 @@ void initializeValidator(const QString &schema_path) {
 
   const QJsonObject schema = schema_doc.object();
   if (!schema.contains("required") || !schema.value("required").isArray() ||
-      !schema.contains("properties") || !schema.value("properties").isObject()) {
+      !schema.contains("properties") ||
+      !schema.value("properties").isObject()) {
     throw std::runtime_error(
         QString("Schema missing required/properties sections: %1")
             .arg(schema_path)

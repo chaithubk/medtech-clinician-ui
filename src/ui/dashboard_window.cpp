@@ -95,9 +95,8 @@ void DashboardWindow::onMQTTMessageReceived(const QString &topic,
       m_ui_model->setStatus("Connected");
     }
   } catch (const std::exception &e) {
-    failClosedVitals(
-        QString("Contract violation on topic '%1': %2")
-            .arg(topic, QString::fromUtf8(e.what())));
+    failClosedVitals(QString("Contract violation on topic '%1': %2")
+                         .arg(topic, QString::fromUtf8(e.what())));
   }
 }
 

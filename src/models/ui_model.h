@@ -23,7 +23,8 @@ class UIModel : public QObject {
   Q_PROPERTY(QString quality_value READ getQualityValue NOTIFY vitalsUpdated)
   Q_PROPERTY(QString last_update READ getLastUpdate NOTIFY vitalsUpdated)
   Q_PROPERTY(QString global_error READ getGlobalError NOTIFY globalErrorChanged)
-  Q_PROPERTY(bool has_global_error READ hasGlobalError NOTIFY globalErrorChanged)
+  Q_PROPERTY(
+      bool has_global_error READ hasGlobalError NOTIFY globalErrorChanged)
   Q_PROPERTY(
       QString respiratory_rate_value READ getRespRateValue NOTIFY vitalsUpdated)
   Q_PROPERTY(
