@@ -83,8 +83,14 @@ The app subscribes to the topic `medtech/vitals/latest` (configurable via `MQTT_
 **Vendored schema:** [`contracts/vitals/v2.0.json`](contracts/vitals/v2.0.json)  
 **Pinned version:** [`contracts/VITALS_CONTRACT_VERSION.txt`](contracts/VITALS_CONTRACT_VERSION.txt)
 
-Payloads **must** have `"version": "2.0"`.  Any message with a missing or
-non-matching `version` is silently dropped and a warning is logged.
+Runtime schema path resolution:
+- `MEDTECH_VITALS_SCHEMA` (if set)
+- default: `/usr/share/medtech/contracts/vitals/current.json`
+
+The dashboard loads the runtime schema at startup and then validates every
+incoming payload against it. If schema loading fails, or if any payload violates
+the contract, the vitals stream fails closed and a persistent global telemetry
+error banner is shown.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -135,6 +141,7 @@ All settings can be overridden with environment variables:
 | `MQTT_PORT` | `1883` | MQTT broker port |
 | `MQTT_TOPIC_VITALS` | `medtech/vitals/latest` | Topic to subscribe to |
 | `MQTT_QOS` | `1` | MQTT QoS level |
+| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/current.json` | Runtime vitals schema file path |
 | `DATA_STALE_TIMEOUT_MS` | `5000` | Stale data threshold (ms) |
 | `WINDOW_WIDTH` | `1920` | Dashboard window width |
 | `WINDOW_HEIGHT` | `1080` | Dashboard window height |

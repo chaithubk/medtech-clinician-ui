@@ -28,6 +28,8 @@
 // ---------------------------------------------------------------------------
 static int g_pass = 0;
 static int g_fail = 0;
+static const QString kTestSchemaPath =
+    QString(MEDTECH_SOURCE_DIR) + "/contracts/vitals/v2.0.json";
 
 #define ASSERT_TRUE(expr)                                                      \
   do {                                                                         \
@@ -87,6 +89,18 @@ static QString makeV2Payload(bool include_version = true,
                  R"("sepsis_stage":"sirs","sepsis_onset_ts":%2,)"
                  R"("quality":"good","source":"simulator"})")
       .arg(version_field, sepsis_onset_val);
+}
+
+static void initializeRuntimeSchemaOrFail() {
+  try {
+    MqttPayload::initializeValidator(kTestSchemaPath);
+    ++g_pass;
+  } catch (const std::exception &e) {
+    std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
+              << "  Failed to initialize schema validator: " << e.what()
+              << "\n";
+    ++g_fail;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -279,7 +293,32 @@ static void test_parseVital_null_sepsis_onset() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 14: Schema fixture validation — checks that the example v2 payload
+// Test 14: validator initialization fails when schema file is missing
+// ---------------------------------------------------------------------------
+static void test_initializeValidator_missing_schema() {
+  ASSERT_THROWS(
+      MqttPayload::initializeValidator("/tmp/medtech/does-not-exist.json"),
+      std::runtime_error);
+}
+
+// ---------------------------------------------------------------------------
+// Test 15: parseVital rejects schema violations (type mismatch)
+// ---------------------------------------------------------------------------
+static void test_parseVital_contract_violation() {
+  const QString invalid_type_payload =
+      R"({"version":"2.0","patient_id":"P001","scenario":"sepsis",)"
+      R"("scenario_stage":"pre_sepsis","timestamp":1712973600000,)"
+      R"("hr":"bad","bp_sys":135.0,"bp_dia":85.0,"o2_sat":98.0,)"
+      R"("temperature":37.2,"respiratory_rate":18.0,"wbc":11.5,)"
+      R"("lactate":1.2,"sirs_score":2,"qsofa_score":1,)"
+      R"("sepsis_stage":"sirs","sepsis_onset_ts":null,)"
+      R"("quality":"good","source":"simulator"})";
+  ASSERT_THROWS(MqttPayload::parseVital(invalid_type_payload),
+                std::runtime_error);
+}
+
+// ---------------------------------------------------------------------------
+// Test 16: Schema fixture validation — checks that the example v2 payload
 //          satisfies the required-fields contract defined in
 //          contracts/vitals/v2.0.json.  This is a lightweight structural
 //          check (field presence + type category) rather than a full
@@ -352,6 +391,7 @@ int main(int argc, char *argv[]) {
   QCoreApplication app(argc, argv);
 
   std::cout << "Running MedTech Clinician UI unit tests (contract v2.0)...\n";
+  initializeRuntimeSchemaOrFail();
 
   test_parseVital_valid();
   test_parseVital_invalid_json();
@@ -367,6 +407,8 @@ int main(int argc, char *argv[]) {
   test_parseVital_rejects_wrong_version();
   test_parseVital_rejects_missing_version();
   test_parseVital_null_sepsis_onset();
+  test_initializeValidator_missing_schema();
+  test_parseVital_contract_violation();
   test_schema_fixture_validation();
 
   std::cout << g_pass << " tests passed, " << g_fail << " tests failed.\n";

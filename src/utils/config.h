@@ -11,6 +11,7 @@ extern const QString MQTT_TOPIC_VITALS;
 extern const int MQTT_QOS;
 extern const int STATUS_UPDATE_INTERVAL_MS;
 extern const int DATA_STALE_TIMEOUT_MS;
+extern const QString VITALS_SCHEMA_PATH;
 extern const int WINDOW_WIDTH;
 extern const int WINDOW_HEIGHT;
 } // namespace Config

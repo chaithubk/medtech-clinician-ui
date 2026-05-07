@@ -41,9 +41,12 @@ public slots:
   void onTimeout();
 
 private:
+  void failClosedVitals(const QString &reason);
+
   MQTTClient *m_mqtt_client{nullptr};
   UIModel *m_ui_model{nullptr};
   QQmlApplicationEngine *m_engine{nullptr};
   QTimer *m_status_timer{nullptr};
   int m_heartbeat_tick{0};
+  bool m_vitals_contract_failed{false};
 };

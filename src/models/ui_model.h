@@ -22,6 +22,8 @@ class UIModel : public QObject {
   Q_PROPERTY(QString temp_value READ getTempValue NOTIFY vitalsUpdated)
   Q_PROPERTY(QString quality_value READ getQualityValue NOTIFY vitalsUpdated)
   Q_PROPERTY(QString last_update READ getLastUpdate NOTIFY vitalsUpdated)
+  Q_PROPERTY(QString global_error READ getGlobalError NOTIFY globalErrorChanged)
+  Q_PROPERTY(bool has_global_error READ hasGlobalError NOTIFY globalErrorChanged)
   Q_PROPERTY(
       QString respiratory_rate_value READ getRespRateValue NOTIFY vitalsUpdated)
   Q_PROPERTY(
@@ -53,6 +55,8 @@ public:
 
   /** @brief Human-readable time elapsed since the last vital update. */
   QString getLastUpdate() const;
+  QString getGlobalError() const;
+  bool hasGlobalError() const;
 
   /** @brief Respiratory rate formatted as "X breaths/min". */
   QString getRespRateValue() const;
@@ -66,6 +70,9 @@ public:
   /** @brief qSOFA score as a string. */
   QString getQsofaScoreValue() const;
 
+  /** @brief Set a persistent global error message for fail-closed states. */
+  void setGlobalError(const QString &error_message);
+
 signals:
   /** @brief Emitted whenever a new VitalReading is stored. */
   void vitalsUpdated();
@@ -73,7 +80,11 @@ signals:
   /** @brief Emitted when the status string changes. */
   void statusChanged(const QString &new_status);
 
+  /** @brief Emitted when the global error state changes. */
+  void globalErrorChanged(const QString &error_message);
+
 private:
   VitalReading m_current_vital;
   QString m_status{"No Data"};
+  QString m_global_error;
 };

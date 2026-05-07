@@ -19,13 +19,19 @@ update procedure below.
 | `contracts/vitals/v2.0.json` | `medtech-telemetry-contract@v2.0.0 / schemas/vitals/v2.0.json` |
 | `contracts/VITALS_CONTRACT_VERSION.txt` | Pinned tag string (`v2.0.0`) |
 
-## Parser contract
+## Runtime validation contract
 
-The clinician UI strictly enforces contract version `2.0`:
+The clinician UI resolves the runtime schema path from:
 
-- If the MQTT payload is missing `version` or `version != "2.0"`, the message
-  is **dropped** (parser throws, caller logs a warning and keeps the previous
-  UI state).
+- `MEDTECH_VITALS_SCHEMA` (if set)
+- default: `/usr/share/medtech/contracts/vitals/current.json`
+
+At startup the UI loads that file and then validates every payload against it.
+
+- If the schema file is missing/unreadable, vitals stream enters a persistent
+  global telemetry error state (fail closed).
+- If any MQTT payload violates the schema contract (required/type/enum/const),
+  vitals stream enters the same persistent global telemetry error state.
 - `sepsis_onset_ts` may be `null` (sepsis not yet detected) — represented as
   `std::nullopt` in `VitalReading::sepsis_onset_ts`.
 
