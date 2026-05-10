@@ -138,6 +138,16 @@ run_step "Security: hardcoded secrets check" \
 run_step "Security: CMake unsafe shell invocations" \
   "! grep -iE 'execute_process|system\\(' CMakeLists.txt src/CMakeLists.txt 2>/dev/null || (echo '::warning::Shell execution found in CMake — review manually'; exit 0)"
 
+run_step "Contract pin metadata integrity" \
+  "test -f contracts/contract-pin.json && \
+   grep -q '\"repository\"' contracts/contract-pin.json && \
+   grep -q '\"schema_path\"' contracts/contract-pin.json && \
+   grep -q '\"tag\"' contracts/contract-pin.json && \
+   grep -q '\"schema_revision\"' contracts/contract-pin.json && \
+   grep -q '\"change_type\"' contracts/contract-pin.json && \
+   SCHEMA_PATH=\$(sed -n 's/.*\"vendored_schema_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' contracts/contract-pin.json | head -1) && \
+   test -n \"\$SCHEMA_PATH\" && test -f \"\$SCHEMA_PATH\""
+
 # ============================================================================
 # BUILD & TEST
 # ============================================================================
@@ -208,6 +218,11 @@ if [[ $FAILED -ne 0 ]]; then
       "Security: CMake unsafe shell invocations")
         echo -e "${CYAN}Review and secure shell invocations in CMake:${NC}"
         echo -e "  ${CYAN}grep -n -iE 'execute_process|system\\(' CMakeLists.txt src/CMakeLists.txt${NC}\n"
+        ;;
+      "Contract pin metadata integrity")
+        echo -e "${CYAN}Validate contract pin metadata and schema path:${NC}"
+        echo -e "  ${CYAN}cat contracts/contract-pin.json${NC}"
+        echo -e "  ${CYAN}test -f contracts/schemas/vitals/vitals.schema.json${NC}\n"
         ;;
       "Coverage report generation")
         echo -e "${CYAN}Generate coverage report manually:${NC}"

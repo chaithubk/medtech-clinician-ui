@@ -1,0 +1,21 @@
+{
+  "contract": "vitals",
+  "source": {
+    "repository": "https://github.com/chaithubk/medtech-telemetry-contract",
+    "schema_path": "schemas/vitals/vitals.schema.json"
+  },
+  "pin": {
+    "tag": "v2.1.1",
+    "upstream_commit": "7f71ce41544b56d70ca4c94971730cfce1331e71",
+    "schema_revision": "sha256:98f662edc8a781ad8ed8aef38b64e6b26f3810d33f10b90ce3f50e84b99fd1ba"
+  },
+  "compatibility": {
+    "change_type": "breaking",
+    "notes": "Upgraded to contract v2.1.1 with canonical vitals.schema.json and newly required creatinine/altered_mentation fields."
+  },
+  "consumer": {
+    "vendored_schema_path": "contracts/schemas/vitals/vitals.schema.json",
+    "runtime_schema_path": "/usr/share/medtech/contracts/schemas/vitals/vitals.schema.json",
+    "expected_payload_version": "2.1.1"
+  }
+}

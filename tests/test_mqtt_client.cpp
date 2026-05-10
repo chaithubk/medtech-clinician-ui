@@ -15,10 +15,13 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QString>
+#include <QTemporaryDir>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -28,8 +31,63 @@
 // ---------------------------------------------------------------------------
 static int g_pass = 0;
 static int g_fail = 0;
-static const QString kTestSchemaPath =
-    QString(MEDTECH_SOURCE_DIR) + "/contracts/vitals/v2.0.json";
+static const QString kContractPinPath =
+    QString(MEDTECH_SOURCE_DIR) + "/contracts/contract-pin.json";
+
+struct ContractPinInfo {
+  QString schema_path;
+  QString tag;
+  QString expected_payload_version;
+  QString change_type;
+};
+
+static ContractPinInfo loadContractPinInfo() {
+  ContractPinInfo info;
+  info.schema_path = QString(MEDTECH_SOURCE_DIR) +
+                     "/contracts/schemas/vitals/vitals.schema.json";
+  info.tag = "unknown";
+  info.expected_payload_version = "2.1.1";
+  info.change_type = "non-breaking";
+
+  QFile pin_file(kContractPinPath);
+  if (!pin_file.open(QIODevice::ReadOnly)) {
+    return info;
+  }
+
+  const QJsonDocument pin_doc = QJsonDocument::fromJson(pin_file.readAll());
+  pin_file.close();
+  if (pin_doc.isNull() || !pin_doc.isObject()) {
+    return info;
+  }
+
+  const QJsonObject root = pin_doc.object();
+  const QJsonObject consumer = root.value("consumer").toObject();
+  const QJsonObject pin = root.value("pin").toObject();
+  const QJsonObject compatibility = root.value("compatibility").toObject();
+
+  const QString schema_rel_path =
+      consumer.value("vendored_schema_path").toString();
+  if (!schema_rel_path.isEmpty()) {
+    info.schema_path = QString(MEDTECH_SOURCE_DIR) + "/" + schema_rel_path;
+  }
+
+  const QString tag = pin.value("tag").toString();
+  if (!tag.isEmpty()) {
+    info.tag = tag;
+  }
+  const QString expected_payload_version =
+      consumer.value("expected_payload_version").toString();
+  if (!expected_payload_version.isEmpty()) {
+    info.expected_payload_version = expected_payload_version;
+  }
+  const QString change_type = compatibility.value("change_type").toString();
+  if (!change_type.isEmpty()) {
+    info.change_type = change_type;
+  }
+  return info;
+}
+
+static const ContractPinInfo kContractPinInfo = loadContractPinInfo();
 
 #define ASSERT_TRUE(expr)                                                      \
   do {                                                                         \
@@ -72,12 +130,13 @@ static const QString kTestSchemaPath =
   } while (false)
 
 // ---------------------------------------------------------------------------
-// Shared v2 payload builder — produces a minimal valid v2.0 payload.
+// Shared payload builder — produces a minimal valid pinned-contract payload.
 // Callers may omit a field or override values to test specific scenarios.
 // ---------------------------------------------------------------------------
-static QString makeV2Payload(bool include_version = true,
-                             const QString &version = "2.0",
-                             bool null_sepsis_onset = false) {
+static QString makeV2Payload(
+    bool include_version = true,
+    const QString &version = kContractPinInfo.expected_payload_version,
+    bool null_sepsis_onset = false) {
   QString sepsis_onset_val = null_sepsis_onset ? "null" : "1712973600000";
   QString version_field =
       include_version ? QString(R"("version":"%1",)").arg(version) : "";
@@ -85,7 +144,8 @@ static QString makeV2Payload(bool include_version = true,
                  R"("scenario_stage":"pre_sepsis","timestamp":1712973600000,)"
                  R"("hr":92.0,"bp_sys":135.0,"bp_dia":85.0,"o2_sat":98.0,)"
                  R"("temperature":37.2,"respiratory_rate":18.0,"wbc":11.5,)"
-                 R"("lactate":1.2,"sirs_score":2,"qsofa_score":1,)"
+                 R"("lactate":1.2,"creatinine":1.0,"altered_mentation":false,)"
+                 R"("sirs_score":2,"qsofa_score":1,)"
                  R"("sepsis_stage":"sirs","sepsis_onset_ts":%2,)"
                  R"("quality":"good","source":"simulator"})")
       .arg(version_field, sepsis_onset_val);
@@ -93,13 +153,59 @@ static QString makeV2Payload(bool include_version = true,
 
 static void initializeRuntimeSchemaOrFail() {
   try {
-    MqttPayload::initializeValidator(kTestSchemaPath);
+    MqttPayload::initializeValidator(kContractPinInfo.schema_path);
     ++g_pass;
   } catch (const std::exception &e) {
     std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
               << " Failed to initialize schema validator: " << e.what() << "\n";
     ++g_fail;
   }
+}
+
+static void reinitializeRuntimeSchemaOrFail() {
+  try {
+    MqttPayload::initializeValidator(kContractPinInfo.schema_path);
+  } catch (const std::exception &e) {
+    std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
+              << " Failed to restore baseline schema validator: " << e.what()
+              << "\n";
+    ++g_fail;
+  }
+}
+
+static QJsonObject loadPinnedSchemaOrFail() {
+  QFile schema_file(kContractPinInfo.schema_path);
+  if (!schema_file.open(QIODevice::ReadOnly)) {
+    throw std::runtime_error(QString("Cannot open schema file: %1")
+                                 .arg(kContractPinInfo.schema_path)
+                                 .toStdString());
+  }
+
+  const QJsonDocument schema_doc =
+      QJsonDocument::fromJson(schema_file.readAll());
+  schema_file.close();
+  if (schema_doc.isNull() || !schema_doc.isObject()) {
+    throw std::runtime_error("Pinned schema file is not valid JSON");
+  }
+  return schema_doc.object();
+}
+
+static QString writeTempSchemaOrFail(const QJsonObject &schema,
+                                     QTemporaryDir *dir_out) {
+  if (!dir_out || !dir_out->isValid()) {
+    throw std::runtime_error("Temporary directory unavailable for schema test");
+  }
+
+  const QString schema_path = dir_out->path() + "/schema.json";
+  QFile out(schema_path);
+  if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    throw std::runtime_error(QString("Cannot write temporary schema file: %1")
+                                 .arg(schema_path)
+                                 .toStdString());
+  }
+  out.write(QJsonDocument(schema).toJson(QJsonDocument::Indented));
+  out.close();
+  return schema_path;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +215,7 @@ static void test_parseVital_valid() {
   const QString json = makeV2Payload();
 
   VitalReading r = MqttPayload::parseVital(json);
-  ASSERT_EQ(r.version, QString("2.0"));
+  ASSERT_EQ(r.version, kContractPinInfo.expected_payload_version);
   ASSERT_EQ(r.patient_id, QString("P001"));
   ASSERT_EQ(r.scenario, QString("sepsis"));
   ASSERT_EQ(r.scenario_stage, QString("pre_sepsis"));
@@ -204,11 +310,12 @@ static void test_uiModel_setVital() {
   UIModel model;
 
   const QString json =
-      R"({"version":"2.0","patient_id":"P002","scenario":"healthy",)"
+      R"({"version":"2.1.1","patient_id":"P002","scenario":"healthy",)"
       R"("scenario_stage":"healthy","timestamp":1712973600000,)"
       R"("hr":65.0,"bp_sys":120.0,"bp_dia":80.0,"o2_sat":99.0,)"
       R"("temperature":36.6,"respiratory_rate":14.0,"wbc":7.5,)"
-      R"("lactate":0.8,"sirs_score":0,"qsofa_score":0,)"
+      R"("lactate":0.8,"creatinine":0.9,"altered_mentation":false,)"
+      R"("sirs_score":0,"qsofa_score":0,)"
       R"("sepsis_stage":"none","sepsis_onset_ts":null,)"
       R"("quality":"good","source":"test"})";
 
@@ -253,10 +360,11 @@ static void test_uiModel_status() {
 static void test_parseVital_missing_field() {
   // Missing "hr" field from an otherwise valid v2 payload
   const QString json =
-      R"({"version":"2.0","patient_id":"P001","scenario":"sepsis",)"
+      R"({"version":"2.1.1","patient_id":"P001","scenario":"sepsis",)"
       R"("scenario_stage":"pre_sepsis","timestamp":1712973600000,)"
       R"("bp_sys":135.0,"bp_dia":85.0,"o2_sat":98.0,"temperature":37.2,)"
-      R"("respiratory_rate":18.0,"wbc":11.5,"lactate":1.2,"sirs_score":2,)"
+      R"("respiratory_rate":18.0,"wbc":11.5,"lactate":1.2,)"
+      R"("creatinine":1.0,"altered_mentation":false,"sirs_score":2,)"
       R"("qsofa_score":1,"sepsis_stage":"sirs","sepsis_onset_ts":null,)"
       R"("quality":"good","source":"simulator"})";
   ASSERT_THROWS(MqttPayload::parseVital(json), std::out_of_range);
@@ -266,11 +374,10 @@ static void test_parseVital_missing_field() {
 // Test 11: parseVital rejects payload with wrong version → runtime_error
 // ---------------------------------------------------------------------------
 static void test_parseVital_rejects_wrong_version() {
-  // version = "1.0" — must be rejected
+  // Non-semver versions are rejected by schema pattern.
   ASSERT_THROWS(MqttPayload::parseVital(makeV2Payload(true, "1.0")),
                 std::runtime_error);
-  // version = "3.0" — must be rejected
-  ASSERT_THROWS(MqttPayload::parseVital(makeV2Payload(true, "3.0")),
+  ASSERT_THROWS(MqttPayload::parseVital(makeV2Payload(true, "2.1")),
                 std::runtime_error);
 }
 
@@ -286,7 +393,8 @@ static void test_parseVital_rejects_missing_version() {
 // Test 13: parseVital handles sepsis_onset_ts: null → nullopt
 // ---------------------------------------------------------------------------
 static void test_parseVital_null_sepsis_onset() {
-  const QString json = makeV2Payload(true, "2.0", true /*null onset*/);
+  const QString json = makeV2Payload(
+      true, kContractPinInfo.expected_payload_version, true /*null onset*/);
   VitalReading r = MqttPayload::parseVital(json);
   ASSERT_TRUE(!r.sepsis_onset_ts.has_value());
 }
@@ -305,22 +413,24 @@ static void test_initializeValidator_missing_schema() {
 // ---------------------------------------------------------------------------
 static void test_parseVital_contract_violation() {
   const QString invalid_type_payload =
-      R"({"version":"2.0","patient_id":"P001","scenario":"sepsis",)"
+      R"({"version":"2.1.1","patient_id":"P001","scenario":"sepsis",)"
       R"("scenario_stage":"pre_sepsis","timestamp":1712973600000,)"
       R"("hr":"bad","bp_sys":135.0,"bp_dia":85.0,"o2_sat":98.0,)"
       R"("temperature":37.2,"respiratory_rate":18.0,"wbc":11.5,)"
-      R"("lactate":1.2,"sirs_score":2,"qsofa_score":1,)"
+      R"("lactate":1.2,"creatinine":1.0,"altered_mentation":false,)"
+      R"("sirs_score":2,"qsofa_score":1,)"
       R"("sepsis_stage":"sirs","sepsis_onset_ts":null,)"
       R"("quality":"good","source":"simulator"})";
   ASSERT_THROWS(MqttPayload::parseVital(invalid_type_payload),
                 std::runtime_error);
 
   const QString unknown_field_payload =
-      R"({"version":"2.0","patient_id":"P001","scenario":"sepsis",)"
+      R"({"version":"2.1.1","patient_id":"P001","scenario":"sepsis",)"
       R"("scenario_stage":"pre_sepsis","timestamp":1712973600000,)"
       R"("hr":92.0,"bp_sys":135.0,"bp_dia":85.0,"o2_sat":98.0,)"
       R"("temperature":37.2,"respiratory_rate":18.0,"wbc":11.5,)"
-      R"("lactate":1.2,"sirs_score":2,"qsofa_score":1,)"
+      R"("lactate":1.2,"creatinine":1.0,"altered_mentation":false,)"
+      R"("sirs_score":2,"qsofa_score":1,)"
       R"("sepsis_stage":"sirs","sepsis_onset_ts":null,)"
       R"("quality":"good","source":"simulator","unexpected":1})";
   ASSERT_THROWS(MqttPayload::parseVital(unknown_field_payload),
@@ -330,17 +440,18 @@ static void test_parseVital_contract_violation() {
 // ---------------------------------------------------------------------------
 // Test 16: Schema fixture validation — checks that the example v2 payload
 //          satisfies the required-fields contract defined in
-//          contracts/vitals/v2.0.json.  This is a lightweight structural
+//          the pinned vendored schema from contracts/contract-pin.json.
+//          This is a lightweight structural
 //          check (field presence + type category) rather than a full
 //          JSON-Schema validator.
 // ---------------------------------------------------------------------------
 static void test_schema_fixture_validation() {
   // Load the vendored schema and parse its "required" array
-  QFile schema_file(QString(MEDTECH_SOURCE_DIR) +
-                    "/contracts/vitals/v2.0.json");
+  QFile schema_file(kContractPinInfo.schema_path);
   if (!schema_file.open(QIODevice::ReadOnly)) {
     std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
-              << "  Cannot open contracts/vitals/v2.0.json\n";
+              << "  Cannot open pinned schema file: "
+              << kContractPinInfo.schema_path.toStdString() << "\n";
     ++g_fail;
     return;
   }
@@ -350,7 +461,7 @@ static void test_schema_fixture_validation() {
 
   if (schema_doc.isNull() || !schema_doc.isObject()) {
     std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
-              << "  contracts/vitals/v2.0.json is not valid JSON\n";
+              << "  Pinned schema file is not valid JSON\n";
     ++g_fail;
     return;
   }
@@ -396,11 +507,120 @@ static void test_schema_fixture_validation() {
 }
 
 // ---------------------------------------------------------------------------
+// Test 17: contract pin metadata is present and structurally complete
+// ---------------------------------------------------------------------------
+static void test_contract_pin_metadata() {
+  ASSERT_TRUE(QFileInfo::exists(kContractPinPath));
+  ASSERT_TRUE(QFileInfo::exists(kContractPinInfo.schema_path));
+  ASSERT_TRUE(!kContractPinInfo.tag.isEmpty());
+  ASSERT_TRUE(!kContractPinInfo.expected_payload_version.isEmpty());
+  ASSERT_TRUE(kContractPinInfo.change_type == "breaking" ||
+              kContractPinInfo.change_type == "non-breaking");
+}
+
+// ---------------------------------------------------------------------------
+// Test 18: optional field additions are tolerated when schema allows extras
+// ---------------------------------------------------------------------------
+static void test_parseVital_optional_field_addition() {
+  try {
+    QJsonObject schema = loadPinnedSchemaOrFail();
+    schema.insert("additionalProperties", true);
+
+    QTemporaryDir temp_dir;
+    const QString schema_path = writeTempSchemaOrFail(schema, &temp_dir);
+    MqttPayload::initializeValidator(schema_path);
+
+    QJsonObject payload_obj =
+        QJsonDocument::fromJson(makeV2Payload().toUtf8()).object();
+    payload_obj.insert("new_optional_field", "future-compatible");
+
+    const QString payload = QString::fromUtf8(
+        QJsonDocument(payload_obj).toJson(QJsonDocument::Compact));
+    VitalReading reading = MqttPayload::parseVital(payload);
+    ASSERT_EQ(reading.patient_id, QString("P001"));
+  } catch (const std::exception &e) {
+    std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
+              << "  optional-field compatibility test failed: " << e.what()
+              << "\n";
+    ++g_fail;
+  }
+
+  reinitializeRuntimeSchemaOrFail();
+}
+
+// ---------------------------------------------------------------------------
+// Test 19: required field changes are enforced by schema
+// ---------------------------------------------------------------------------
+static void test_parseVital_required_field_change() {
+  try {
+    QJsonObject schema = loadPinnedSchemaOrFail();
+    QJsonArray required = schema.value("required").toArray();
+    required.append("device_id");
+    schema.insert("required", required);
+
+    QJsonObject properties = schema.value("properties").toObject();
+    properties.insert("device_id", QJsonObject{{"type", "string"}});
+    schema.insert("properties", properties);
+
+    QTemporaryDir temp_dir;
+    const QString schema_path = writeTempSchemaOrFail(schema, &temp_dir);
+    MqttPayload::initializeValidator(schema_path);
+
+    ASSERT_THROWS(MqttPayload::parseVital(makeV2Payload()), std::out_of_range);
+
+    QJsonObject payload_obj =
+        QJsonDocument::fromJson(makeV2Payload().toUtf8()).object();
+    payload_obj.insert("device_id", "bedside-monitor-A");
+    const QString payload = QString::fromUtf8(
+        QJsonDocument(payload_obj).toJson(QJsonDocument::Compact));
+    VitalReading reading = MqttPayload::parseVital(payload);
+    ASSERT_EQ(reading.version, kContractPinInfo.expected_payload_version);
+  } catch (const std::exception &e) {
+    std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
+              << "  required-field change test failed: " << e.what() << "\n";
+    ++g_fail;
+  }
+
+  reinitializeRuntimeSchemaOrFail();
+}
+
+// ---------------------------------------------------------------------------
+// Test 20: payload version behavior follows loaded schema, not hardcoded value
+// ---------------------------------------------------------------------------
+static void test_parseVital_payload_version_change() {
+  try {
+    QJsonObject schema = loadPinnedSchemaOrFail();
+    QJsonObject properties = schema.value("properties").toObject();
+    QJsonObject version_prop = properties.value("version").toObject();
+    version_prop.insert("const", "2.1.1");
+    properties.insert("version", version_prop);
+    schema.insert("properties", properties);
+
+    QTemporaryDir temp_dir;
+    const QString schema_path = writeTempSchemaOrFail(schema, &temp_dir);
+    MqttPayload::initializeValidator(schema_path);
+
+    VitalReading upgraded =
+        MqttPayload::parseVital(makeV2Payload(true, "2.1.1"));
+    ASSERT_EQ(upgraded.version, QString("2.1.1"));
+    ASSERT_THROWS(MqttPayload::parseVital(makeV2Payload(true, "2.1")),
+                  std::runtime_error);
+  } catch (const std::exception &e) {
+    std::cerr << "[FAIL] " << __FILE__ << ":" << __LINE__
+              << "  payload-version change test failed: " << e.what() << "\n";
+    ++g_fail;
+  }
+
+  reinitializeRuntimeSchemaOrFail();
+}
+
+// ---------------------------------------------------------------------------
 int main(int argc, char *argv[]) {
   // QCoreApplication required for QObject, signals, and Qt containers
   QCoreApplication app(argc, argv);
 
-  std::cout << "Running MedTech Clinician UI unit tests (contract v2.0)...\n";
+  std::cout << "Running MedTech Clinician UI unit tests (contract tag "
+            << kContractPinInfo.tag.toStdString() << ")...\n";
   initializeRuntimeSchemaOrFail();
 
   test_parseVital_valid();
@@ -420,6 +640,10 @@ int main(int argc, char *argv[]) {
   test_initializeValidator_missing_schema();
   test_parseVital_contract_violation();
   test_schema_fixture_validation();
+  test_contract_pin_metadata();
+  test_parseVital_optional_field_addition();
+  test_parseVital_required_field_change();
+  test_parseVital_payload_version_change();
 
   std::cout << g_pass << " tests passed, " << g_fail << " tests failed.\n";
 

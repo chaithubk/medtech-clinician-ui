@@ -175,7 +175,7 @@ target_include_directories(test_mqtt_client PRIVATE
 )
 
 # Provide the project root directory to the test binary so it can locate
-# vendored contract files (e.g. contracts/vitals/v2.0.json)
+# contract metadata and vendored schema files (e.g. contracts/contract-pin.json)
 target_compile_definitions(test_mqtt_client PRIVATE
     MEDTECH_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
 )

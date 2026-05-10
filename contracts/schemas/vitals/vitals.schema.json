@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/chaithubk/medtech-telemetry-contract/schemas/vitals/v2.0.json",
-  "title": "MedTech Vitals Telemetry Payload v2.0",
-  "description": "JSON Schema for the v2.0 vitals telemetry payload published on MQTT topic medtech/vitals/latest.",
+  "$id": "https://github.com/chaithubk/medtech-telemetry-contract/schemas/vitals/vitals.schema.json",
+  "title": "MedTech Vitals Telemetry Payload",
+  "description": "Canonical JSON Schema for MedTech vitals telemetry. See CHANGELOG.md for version history and breaking changes.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -19,6 +19,8 @@
     "respiratory_rate",
     "wbc",
     "lactate",
+    "creatinine",
+    "altered_mentation",
     "sirs_score",
     "qsofa_score",
     "sepsis_stage",
@@ -29,8 +31,8 @@
   "properties": {
     "version": {
       "type": "string",
-      "const": "2.0",
-      "description": "Schema version. Must be exactly '2.0' for this contract."
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Contract version in SemVer format (MAJOR.MINOR.PATCH) produced by the publisher. Consumers may enforce accepted ranges."
     },
     "patient_id": {
       "type": "string",
@@ -74,7 +76,7 @@
     },
     "temperature": {
       "type": "number",
-      "description": "Body temperature in degrees Celsius (\u00b0C)."
+      "description": "Body temperature in degrees Celsius (C)."
     },
     "respiratory_rate": {
       "type": "number",
@@ -83,7 +85,7 @@
     },
     "wbc": {
       "type": "number",
-      "description": "White blood cell count in thousands per microliter (10\u00b3/\u00b5L).",
+      "description": "White blood cell count in thousands per microliter (10^3/uL).",
       "minimum": 0
     },
     "lactate": {
@@ -91,15 +93,24 @@
       "description": "Blood lactate level in millimoles per litre (mmol/L).",
       "minimum": 0
     },
+    "creatinine": {
+      "type": "number",
+      "description": "Serum creatinine in milligrams per decilitre (mg/dL). Elevated values indicate organ dysfunction.",
+      "minimum": 0
+    },
+    "altered_mentation": {
+      "type": "boolean",
+      "description": "True when Glasgow Coma Scale (GCS) < 15, indicating altered mental status (qSOFA mental-status criterion)."
+    },
     "sirs_score": {
       "type": "integer",
-      "description": "Systemic Inflammatory Response Syndrome (SIRS) score (0\u20134).",
+      "description": "Systemic Inflammatory Response Syndrome (SIRS) score (0-4).",
       "minimum": 0,
       "maximum": 4
     },
     "qsofa_score": {
       "type": "integer",
-      "description": "Quick Sequential Organ Failure Assessment (qSOFA) score (0\u20133).",
+      "description": "Quick Sequential Organ Failure Assessment (qSOFA) score (0-3).",
       "minimum": 0,
       "maximum": 3
     },

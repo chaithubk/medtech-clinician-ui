@@ -19,7 +19,7 @@ A Qt6/QML real-time clinician dashboard that displays patient vital signs receiv
 ### Build
 
 ```sh
-cmake . && make -j$(nproc)
+cmake -S . -B build && cmake --build build -j$(nproc)
 ```
 
 Or use the CMake Tools extension — it will configure automatically on container open.
@@ -43,7 +43,7 @@ pgrep mosquitto > /dev/null || mosquitto -d
 ### 2. Run the dashboard
 
 ```sh
-DISPLAY=:99 QT_QPA_PLATFORM=xcb ./bin/dashboard &
+DISPLAY=:99 QT_QPA_PLATFORM=xcb ./build/bin/dashboard &
 ```
 
 You should see in the terminal:
@@ -56,11 +56,12 @@ You should see in the terminal:
 
 ```sh
 mosquitto_pub -h localhost -t "medtech/vitals/latest" \
-  -m "{\"version\":\"2.0\",\"patient_id\":\"P001\",\"scenario\":\"healthy\",\
+  -m "{\"version\":\"2.1.1\",\"patient_id\":\"P001\",\"scenario\":\"healthy\",\
 \"scenario_stage\":\"healthy\",\"timestamp\":$(date +%s%3N),\
 \"hr\":72.5,\"bp_sys\":120.0,\"bp_dia\":80.0,\"o2_sat\":98.5,\
 \"temperature\":36.8,\"respiratory_rate\":14.0,\"wbc\":7.5,\
-\"lactate\":0.8,\"sirs_score\":0,\"qsofa_score\":0,\
+\"lactate\":0.8,\"creatinine\":0.9,\"altered_mentation\":false,\
+\"sirs_score\":0,\"qsofa_score\":0,\
 \"sepsis_stage\":\"none\",\"sepsis_onset_ts\":null,\
 \"quality\":\"good\",\"source\":\"test-simulator\"}"
 ```
@@ -75,17 +76,21 @@ Open `dashboard_screenshot.png` in VS Code Explorer to view the rendered dashboa
 
 ---
 
-## MQTT Payload Format (Contract v2.0)
+## MQTT Payload Contract
 
 The app subscribes to the topic `medtech/vitals/latest` (configurable via `MQTT_TOPIC_VITALS` env var).
 
-**Contract source of truth:** [chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract) — pinned to tag **`v2.0.0`**  
-**Vendored schema:** [`contracts/vitals/v2.0.json`](contracts/vitals/v2.0.json)  
-**Pinned version:** [`contracts/VITALS_CONTRACT_VERSION.txt`](contracts/VITALS_CONTRACT_VERSION.txt)
+**Contract source of truth:** [chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract)  
+**Structured pin metadata:** [`contracts/contract-pin.json`](contracts/contract-pin.json)  
+**Vendored schema (canonical path):** [`contracts/schemas/vitals/vitals.schema.json`](contracts/schemas/vitals/vitals.schema.json)
+
+Update workflow: modify the vendored schema and `contracts/contract-pin.json` together,
+then run `tools/check_ci.sh`. See `contracts/README.md` for the full procedure.
 
 Runtime schema path resolution:
 - `MEDTECH_VITALS_SCHEMA` (if set)
-- default: `/usr/share/medtech/contracts/vitals/current.json`
+- else `consumer.runtime_schema_path` from `MEDTECH_CONTRACT_PIN` (default `/usr/share/medtech/contracts/contract-pin.json`)
+- fallback: `/usr/share/medtech/contracts/schemas/vitals/vitals.schema.json`
 
 The dashboard loads the runtime schema at startup and then validates every
 incoming payload against it. If schema loading fails, or if any payload violates
@@ -94,7 +99,7 @@ error banner is shown.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `version` | string | Schema version — **must** be `"2.0"` |
+| `version` | string | Contract version in semver format (for example `"2.1.1"`) |
 | `patient_id` | string | Patient or simulated-patient record ID |
 | `scenario` | string | `"healthy"` \| `"sepsis"` \| `"critical"` |
 | `scenario_stage` | string | `"healthy"` \| `"pre_sepsis"` \| `"sepsis_onset"` \| `"sepsis"` \| `"septic_shock"` |
@@ -107,6 +112,8 @@ error banner is shown.
 | `respiratory_rate` | float | Respiratory rate (breaths/min) |
 | `wbc` | float | White blood cell count (10³/µL) |
 | `lactate` | float | Blood lactate (mmol/L) |
+| `creatinine` | float | Serum creatinine (mg/dL) |
+| `altered_mentation` | boolean | `true` when altered mental status is present |
 | `sirs_score` | integer | SIRS score (0–4) |
 | `qsofa_score` | integer | qSOFA score (0–3) |
 | `sepsis_stage` | string | `"none"` \| `"sirs"` \| `"sepsis"` \| `"septic_shock"` |
@@ -116,15 +123,16 @@ error banner is shown.
 
 > **Note:** Use `$(date +%s%3N)` for the timestamp to avoid the **"Stale Data"** warning, which triggers when data is older than 5 seconds.
 
-### Example v2.0 payload
+### Example v2.1.1 payload
 
 ```sh
 mosquitto_pub -h localhost -t "medtech/vitals/latest" \
-  -m "{\"version\":\"2.0\",\"patient_id\":\"P001\",\"scenario\":\"healthy\",\
+  -m "{\"version\":\"2.1.1\",\"patient_id\":\"P001\",\"scenario\":\"healthy\",\
 \"scenario_stage\":\"healthy\",\"timestamp\":$(date +%s%3N),\
 \"hr\":72.5,\"bp_sys\":120.0,\"bp_dia\":80.0,\"o2_sat\":98.5,\
 \"temperature\":36.8,\"respiratory_rate\":14.0,\"wbc\":7.5,\
-\"lactate\":0.8,\"sirs_score\":0,\"qsofa_score\":0,\
+\"lactate\":0.8,\"creatinine\":0.9,\"altered_mentation\":false,\
+\"sirs_score\":0,\"qsofa_score\":0,\
 \"sepsis_stage\":\"none\",\"sepsis_onset_ts\":null,\
 \"quality\":\"good\",\"source\":\"test-simulator\"}"
 ```
@@ -141,14 +149,15 @@ All settings can be overridden with environment variables:
 | `MQTT_PORT` | `1883` | MQTT broker port |
 | `MQTT_TOPIC_VITALS` | `medtech/vitals/latest` | Topic to subscribe to |
 | `MQTT_QOS` | `1` | MQTT QoS level |
-| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/current.json` | Runtime vitals schema file path |
+| `MEDTECH_CONTRACT_PIN` | `/usr/share/medtech/contracts/contract-pin.json` | Contract pin metadata file path |
+| `MEDTECH_VITALS_SCHEMA` | Resolved from contract pin metadata (fallback `/usr/share/medtech/contracts/schemas/vitals/vitals.schema.json`) | Runtime vitals schema file path |
 | `DATA_STALE_TIMEOUT_MS` | `5000` | Stale data threshold (ms) |
 | `WINDOW_WIDTH` | `1920` | Dashboard window width |
 | `WINDOW_HEIGHT` | `1080` | Dashboard window height |
 
 Example — connect to an external broker:
 ```sh
-MQTT_BROKER=192.168.1.100 DISPLAY=:99 QT_QPA_PLATFORM=xcb ./bin/dashboard &
+MQTT_BROKER=192.168.1.100 DISPLAY=:99 QT_QPA_PLATFORM=xcb ./build/bin/dashboard &
 ```
 
 ---
@@ -161,7 +170,7 @@ cd build && ctest --output-on-failure
 
 Or run the test binary directly:
 ```sh
-./bin/test_mqtt_client
+./build/bin/test_mqtt_client
 ```
 
 ---

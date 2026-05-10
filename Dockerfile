@@ -31,8 +31,9 @@ ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib
 
 COPY . .
 
-RUN mkdir -p /usr/share/medtech/contracts/vitals \
-    && cp contracts/vitals/v2.0.json /usr/share/medtech/contracts/vitals/current.json
+RUN mkdir -p /usr/share/medtech/contracts/schemas/vitals \
+    && cp contracts/schemas/vitals/vitals.schema.json /usr/share/medtech/contracts/schemas/vitals/vitals.schema.json \
+    && cp contracts/contract-pin.json /usr/share/medtech/contracts/contract-pin.json
 
 RUN rm -f CMakeCache.txt && rm -rf CMakeFiles \
     && cmake -S . -B build \
