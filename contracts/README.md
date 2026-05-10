@@ -1,54 +1,61 @@
 # MedTech Vitals Telemetry Contract (Vendored)
 
-## Source of Truth
+## Governance model
 
-The canonical contract is maintained in:
+This repository consumes the telemetry contract through a structured pin file:
 
-> **Repository:** [chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract)  
-> **Pinned tag:** `v2.0.0`  
-> **Schema path:** `schemas/vitals/v2.0.json`
+- `contracts/contract-pin.json`
 
-The file `contracts/vitals/v2.0.json` in this repository is a verbatim copy
-vendored at the tag above. Do **not** edit it locally — instead follow the
-update procedure below.
+The pin file is the single source of truth for:
+
+- contract source repository
+- upstream schema path
+- pinned contract tag
+- pinned schema revision digest
+- compatibility classification (`breaking` or `non-breaking`)
+- vendored schema path used by tests/build
+
+Do not edit vendored schema files manually without updating
+`contracts/contract-pin.json` in the same PR.
 
 ## What is vendored here
 
-| File | Origin |
-|------|--------|
-| `contracts/vitals/v2.0.json` | `medtech-telemetry-contract@v2.0.0 / schemas/vitals/v2.0.json` |
-| `contracts/VITALS_CONTRACT_VERSION.txt` | Pinned tag string (`v2.0.0`) |
+| File | Purpose |
+|------|---------|
+| `contracts/contract-pin.json` | Structured contract pin metadata |
+| `contracts/schemas/vitals/vitals.schema.json` | Vendored schema copy matching the pin |
 
 ## Runtime validation contract
 
-The clinician UI resolves the runtime schema path from:
+The clinician UI resolves the runtime schema path in this order:
 
-- `MEDTECH_VITALS_SCHEMA` (if set)
-- default: `/usr/share/medtech/contracts/vitals/current.json`
+1. `MEDTECH_VITALS_SCHEMA` (if set)
+2. `consumer.runtime_schema_path` from `MEDTECH_CONTRACT_PIN` (default: `/usr/share/medtech/contracts/contract-pin.json`)
+3. fallback: `/usr/share/medtech/contracts/schemas/vitals/vitals.schema.json`
 
-At startup the UI loads that file and then validates every payload against it.
+At startup the UI loads that file and validates every incoming payload.
 
 - If the schema file is missing/unreadable, vitals stream enters a persistent
   global telemetry error state (fail closed).
-- If any MQTT payload violates the schema contract (required/type/enum/const),
-  vitals stream enters the same persistent global telemetry error state.
-- `sepsis_onset_ts` may be `null` (sepsis not yet detected) — represented as
-  `std::nullopt` in `VitalReading::sepsis_onset_ts`.
+- If payloads violate schema constraints, vitals stream enters the same
+  persistent global telemetry error state.
+- Unknown future fields are tolerated when the loaded schema allows them.
 
 ## Update procedure
 
-1. In `chaithubk/medtech-telemetry-contract`, create a new release tag (e.g.
-   `v2.1.0`).
-2. Copy the updated schema:
+1. Pick the new upstream contract tag/commit in
+   `chaithubk/medtech-telemetry-contract`.
+2. Vendor the canonical schema path:
    ```sh
-   # from repo root
    curl -fsSL \
-     "https://raw.githubusercontent.com/chaithubk/medtech-telemetry-contract/<NEW_TAG>/schemas/vitals/v2.0.json" \
-     -o contracts/vitals/v2.0.json
-   echo "<NEW_TAG>" > contracts/VITALS_CONTRACT_VERSION.txt
+     "https://raw.githubusercontent.com/chaithubk/medtech-telemetry-contract/<NEW_TAG>/schemas/vitals/vitals.schema.json" \
+     -o contracts/schemas/vitals/vitals.schema.json
    ```
-3. Update the parsing code in `src/mqtt/mqtt_payload.cpp` and the
-   `VitalReading` struct in `src/models/vital_reading.h` to reflect any
-   schema changes.
-4. Update tests in `tests/test_mqtt_client.cpp`.
-5. Open a PR — CI must pass before merging.
+3. Compute schema digest and update `contracts/contract-pin.json`:
+   - `pin.tag`
+   - `pin.upstream_commit` (if known)
+   - `pin.schema_revision` (sha256 digest)
+   - `compatibility.change_type`
+   - `consumer.expected_payload_version` if changed
+4. Update parser/model/tests as needed for any schema changes.
+5. Run `tools/check_ci.sh` and open a PR with contract compatibility rationale.

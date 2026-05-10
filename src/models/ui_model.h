@@ -7,7 +7,7 @@
 /**
  * @brief Qt model exposing vital-sign data to QML via Q_PROPERTY bindings.
  *
- * Exposes all fields from the MedTech Vitals Telemetry Contract v2.0.
+ * Exposes telemetry-derived fields from the MedTech Vitals Telemetry Contract.
  * All getter methods are bound to QML properties.  Call setVital() /
  * setStatus() from C++ and the QML layer will update automatically through the
  * signals.

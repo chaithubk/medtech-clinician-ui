@@ -5,6 +5,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QRegularExpression>
 #include <cmath>
 #include <stdexcept>
 
@@ -110,6 +111,27 @@ bool validateConstraints(const QString &field, const QJsonValue &value,
     }
     if (!found) {
       *error_out = QString("Field '%1' has value outside enum").arg(field);
+      return false;
+    }
+  }
+
+  if (property_schema.contains("pattern") && !value.isNull()) {
+    if (!value.isString()) {
+      *error_out =
+          QString("Field '%1' must be a string for pattern check").arg(field);
+      return false;
+    }
+    const QString pattern = property_schema.value("pattern").toString();
+    const QRegularExpression regex(pattern);
+    if (!regex.isValid()) {
+      *error_out =
+          QString("Field '%1' has invalid schema regex pattern").arg(field);
+      return false;
+    }
+    const QRegularExpressionMatch match = regex.match(value.toString());
+    if (!match.hasMatch()) {
+      *error_out =
+          QString("Field '%1' does not match required pattern").arg(field);
       return false;
     }
   }
@@ -251,15 +273,15 @@ void initializeValidator(const QString &schema_path) {
 /**
  * @brief Parse a JSON vital-signs payload into a VitalReading.
  *
- * Enforces the MedTech Vitals Telemetry Contract v2.0 (see
- * contracts/vitals/v2.0.json).  Rejects payloads where "version" is absent
- * or not equal to "2.0" by throwing std::runtime_error — callers should log
- * a warning and discard the message.
+ * Enforces the currently loaded runtime schema (resolved from contract pin
+ * metadata at startup unless overridden by MEDTECH_VITALS_SCHEMA). Rejects
+ * payloads that violate schema constraints including required fields and
+ * version const mismatches.
  *
  * @param json_str UTF-8 JSON string from the MQTT broker.
  * @return Populated VitalReading.
- * @throws std::runtime_error  if the JSON is syntactically invalid or the
- *                              schema version does not match "2.0".
+ * @throws std::runtime_error  if the JSON is syntactically invalid or payload
+ *                              violates runtime schema constraints.
  * @throws std::out_of_range   if a required field is absent.
  */
 VitalReading parseVital(const QString &json_str) {

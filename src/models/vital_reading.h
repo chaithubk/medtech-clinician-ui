@@ -7,14 +7,15 @@
 /**
  * @brief Plain-old-data struct holding one vital-sign measurement.
  *
- * Matches the MedTech Vitals Telemetry Contract v2.0 schema.
- * See contracts/vitals/v2.0.json for the authoritative field definitions.
+ * Matches the MedTech Vitals Telemetry Contract schema.
+ * See contracts/schemas/vitals/vitals.schema.json for the authoritative field
+ * definitions.
  *
  * All fields are public; no invariants are enforced at the struct level —
  * call isValid() to check whether the values are in physiological range.
  */
 struct VitalReading {
-  /** Schema version string — must be "2.0" for v2 contract payloads. */
+  /** Contract version string in semver format (e.g. "2.1.1"). */
   QString version;
   /** Unique patient or simulated-patient record identifier. */
   QString patient_id;
