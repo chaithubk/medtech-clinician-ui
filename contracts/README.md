@@ -11,8 +11,9 @@ The pin file is the single source of truth for:
 - contract source repository
 - upstream schema path
 - pinned contract tag
+- pinned upstream commit SHA
 - pinned schema revision digest
-- compatibility classification (`breaking` or `non-breaking`)
+- compatibility classification (`patch`, `minor`, `breaking`, or `unknown`)
 - vendored schema path used by tests/build
 
 Do not edit vendored schema files manually without updating
@@ -43,8 +44,15 @@ At startup the UI loads that file and validates every incoming payload.
 
 ## Update procedure
 
-1. Pick the new upstream contract tag/commit in
-   `chaithubk/medtech-telemetry-contract`.
+### Option A — GitHub Actions (recommended)
+
+1. Trigger **Vendor Telemetry Contract** workflow in this repository (Actions tab).
+2. Optionally provide a target tag (defaults to latest release tag).
+3. Review the automated PR and merge once CI is green.
+
+### Option B — Manual update
+
+1. Pick the new upstream contract tag/commit in `chaithubk/medtech-telemetry-contract`.
 2. Vendor the canonical schema path:
    ```sh
    curl -fsSL \
