@@ -1,0 +1,88 @@
+name: Contract Drift Check
+
+on:
+  repository_dispatch:
+    types: [contract-release-published]
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  resolve:
+    name: Resolve target contract tag
+    runs-on: ubuntu-latest
+    outputs:
+      drift: ${{ steps.compare.outputs.drift }}
+      pinned: ${{ steps.pinned.outputs.version }}
+      target: ${{ steps.target.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pinned contract version
+        id: pinned
+        run: |
+          VERSION=$(python3 - <<'PY'
+import json
+from pathlib import Path
+
+pin_path = Path('contracts/contract-pin.json')
+if not pin_path.exists():
+    raise SystemExit('Missing contracts/contract-pin.json')
+
+pin = json.loads(pin_path.read_text(encoding='utf-8'))
+print(str(pin.get('tag', '')).strip())
+PY
+          )
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Pinned contract version: ${VERSION}"
+
+      - name: Resolve target tag
+        id: target
+        env:
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          GH_TOKEN: ${{ secrets.CD_PAT || github.token }}
+        run: |
+          if [[ -n "${DISPATCH_TAG}" ]]; then
+            TARGET="${DISPATCH_TAG}"
+          else
+            TARGET=$(gh api repos/chaithubk/medtech-telemetry-contract/releases/latest --jq '.tag_name' 2>/dev/null || true)
+            if [[ -z "${TARGET}" || "${TARGET}" == "null" ]]; then
+              TARGET=$(gh api repos/chaithubk/medtech-telemetry-contract/tags --jq '.[0].name' 2>/dev/null || true)
+            fi
+          fi
+
+          if [[ -z "${TARGET}" || "${TARGET}" == "null" ]]; then
+            echo "::error::Could not resolve target contract tag."
+            exit 1
+          fi
+
+          echo "tag=${TARGET}" >> "$GITHUB_OUTPUT"
+          echo "Target contract version: ${TARGET}"
+
+      - name: Compare versions
+        id: compare
+        env:
+          PINNED: ${{ steps.pinned.outputs.version }}
+          TARGET: ${{ steps.target.outputs.tag }}
+        run: |
+          if [[ "${PINNED}" == "${TARGET}" ]]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "Contract is up to date (${PINNED})."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "Contract drift detected: ${PINNED} -> ${TARGET}"
+          fi
+
+  auto-vendor:
+    name: Auto-create contract update PR
+    needs: resolve
+    if: needs.resolve.outputs.drift == 'true'
+    uses: ./.github/workflows/vendor-telemetry-contract.yml
+    with:
+      tag: ${{ needs.resolve.outputs.target }}
+    secrets: inherit

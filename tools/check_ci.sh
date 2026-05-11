@@ -140,10 +140,14 @@ run_step "Security: CMake unsafe shell invocations" \
 
 run_step "Contract pin metadata integrity" \
   "test -f contracts/contract-pin.json && \
+  grep -q '\"contract_repo\"' contracts/contract-pin.json && \
+  grep -q '\"commit_sha\"' contracts/contract-pin.json && \
+  grep -q '\"local_schema\"' contracts/contract-pin.json && \
    grep -q '\"repository\"' contracts/contract-pin.json && \
    grep -q '\"schema_path\"' contracts/contract-pin.json && \
    grep -q '\"tag\"' contracts/contract-pin.json && \
    grep -q '\"schema_revision\"' contracts/contract-pin.json && \
+  grep -q '\"classification\"' contracts/contract-pin.json && \
    grep -q '\"change_type\"' contracts/contract-pin.json && \
    SCHEMA_PATH=\$(sed -n 's/.*\"vendored_schema_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' contracts/contract-pin.json | head -1) && \
    test -n \"\$SCHEMA_PATH\" && test -f \"\$SCHEMA_PATH\""

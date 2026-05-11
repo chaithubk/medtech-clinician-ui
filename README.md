@@ -84,6 +84,14 @@ The app subscribes to the topic `medtech/vitals/latest` (configurable via `MQTT_
 **Structured pin metadata:** [`contracts/contract-pin.json`](contracts/contract-pin.json)  
 **Vendored schema (canonical path):** [`contracts/schemas/vitals/vitals.schema.json`](contracts/schemas/vitals/vitals.schema.json)
 
+The pin metadata includes canonical orchestration keys used by the platform:
+- `contract_repo`
+- `tag`
+- `commit_sha`
+- `schema_path`
+- `local_schema`
+- `compatibility.classification`
+
 Update workflow: modify the vendored schema and `contracts/contract-pin.json` together,
 then run `tools/check_ci.sh`. See `contracts/README.md` for the full procedure.
 
