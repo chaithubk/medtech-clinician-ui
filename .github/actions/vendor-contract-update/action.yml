@@ -1,0 +1,71 @@
+name: Vendor Contract Update
+description: Resolve upstream telemetry contract tag, vendor schema, update pin metadata, and open/update a PR.
+
+inputs:
+  tag:
+    description: Contract repo tag to vendor. Leave empty to auto-resolve latest release/tag.
+    required: false
+    default: ""
+  github-token:
+    description: Token used for GH API and PR operations.
+    required: true
+
+outputs:
+  tag:
+    description: Resolved contract tag.
+    value: ${{ steps.resolve.outputs.tag }}
+  commit:
+    description: Resolved upstream commit SHA.
+    value: ${{ steps.resolve.outputs.commit }}
+  classification:
+    description: Compatibility classification (breaking/minor/patch/unknown).
+    value: ${{ steps.pin.outputs.classification }}
+  changed:
+    description: Whether vendoring changed files.
+    value: ${{ steps.changes.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve target tag and commit SHA
+      id: resolve
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        bash .github/scripts/resolve_contract_ref.sh "${{ inputs.tag }}"
+
+    - name: Download canonical schema
+      shell: bash
+      run: |
+        bash .github/scripts/download_vitals_schema.sh "${{ steps.resolve.outputs.tag }}"
+
+    - name: Update contract pin metadata
+      id: pin
+      shell: bash
+      env:
+        TAG: ${{ steps.resolve.outputs.tag }}
+        COMMIT: ${{ steps.resolve.outputs.commit }}
+      run: |
+        python3 .github/scripts/update_contract_pin.py
+
+    - name: Check for changes
+      id: changes
+      shell: bash
+      run: |
+        if git diff --quiet; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Open PR
+      if: steps.changes.outputs.changed == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        TAG: ${{ steps.resolve.outputs.tag }}
+        COMMIT: ${{ steps.resolve.outputs.commit }}
+        CLASSIFICATION: ${{ steps.pin.outputs.classification }}
+      run: |
+        bash .github/scripts/open_contract_update_pr.sh
